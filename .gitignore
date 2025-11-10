@@ -1,2 +1,5 @@
+expedientes_completos.csv
+movimientos_expedientes/
+__pycache__
 .git
 .venv
