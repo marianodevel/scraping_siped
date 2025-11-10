@@ -3,6 +3,7 @@ import time
 from urllib.parse import urljoin
 import parsers
 import config
+from bs4 import BeautifulSoup
 
 
 def scrape_lista_expedientes(session):
