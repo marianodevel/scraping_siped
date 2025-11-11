@@ -160,3 +160,31 @@ def parse_movimientos_from_ajax_html(html_movimientos, nro_expediente):
             }
             movimientos_list.append(mov_data)
     return movimientos_list
+
+
+def parse_document_text(html_text):
+    """
+    Extrae el texto principal del contenido de un movimiento/escrito.
+    Basado en la estructura del editor Quill (div#editor-container).
+    """
+    soup = BeautifulSoup(html_text, "html.parser")
+
+    # El texto del documento está dentro del div con id='editor-container'
+    editor_container = soup.find(id="editor-container")
+
+    if not editor_container:
+        # Fallback por si no se encuentra el contenedor principal
+        return "ERROR: No se pudo encontrar el div '#editor-container' en el HTML del documento."
+
+    # Usamos .get_text() para extraer todo el texto de los <p> y <span> internos.
+    # separator='\n' ayuda a preservar los saltos de línea entre párrafos.
+    text = editor_container.get_text(separator="\n", strip=True)
+
+    # Limpieza adicional: eliminar líneas vacías duplicadas
+    clean_lines = []
+    for line in text.splitlines():
+        stripped_line = line.strip()
+        if stripped_line:
+            clean_lines.append(stripped_line)
+
+    return "\n".join(clean_lines)

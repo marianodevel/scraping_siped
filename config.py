@@ -1,4 +1,4 @@
-# config.py
+# marianodevel/scraping_siped/marianodevel-scraping_siped-c1d54d11d3b59f2e8f0a682b7ed49cc9c0bba71f/config.py
 import os
 from dotenv import load_dotenv
 
@@ -18,6 +18,7 @@ AJAX_MOVIMIENTOS_URL = f"{BASE_URL}/siped/expediente/buscar/ver_mas_escritosAjax
 # --- Archivos de Salida ---
 LISTA_EXPEDIENTES_CSV = "expedientes_completos.csv"
 MOVIMIENTOS_OUTPUT_DIR = "movimientos_expedientes"
+DOCUMENTOS_OUTPUT_DIR = "documentos_expedientes"
 
 # --- Headers ---
 BROWSER_HEADERS = {

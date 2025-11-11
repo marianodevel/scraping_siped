@@ -123,3 +123,29 @@ def scrape_movimientos_de_expediente(session, expediente_dict):
         time.sleep(0.25)  # Pausa cortés para no saturar el servidor
 
     return movimientos_del_expediente
+
+
+def scrape_document_content(session, document_url):
+    """
+    Visita la URL de un escrito (documento/movimiento) y
+    extrae su texto principal.
+    """
+    if not document_url:
+        print("   > ADVERTENCIA: No se proporcionó URL para el documento.")
+        return None
+
+    try:
+        # No necesitamos construir la URL absoluta, 'parsers.py' ya lo hace
+        # al crear el 'link_escrito'
+        r_documento = session.get(document_url)
+        r_documento.raise_for_status()
+
+        # Usar el nuevo parser de documentos
+        document_text = parsers.parse_document_text(r_documento.text)
+        return document_text
+
+    except Exception as e:
+        print(
+            f"   > ERROR al obtener el contenido del documento en {document_url}: {e}"
+        )
+        return None
