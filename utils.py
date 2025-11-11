@@ -43,12 +43,13 @@ def save_to_csv(data, filename, subdirectory="."):
         print(f"  > Error al guardar CSV: {e}")
 
 
-def save_to_txt(content, filename, subdirectory):
+# --- ¡FUNCIÓN MODIFICADA! ---
+def save_to_txt(data, filename, subdirectory):
     """
-    Guarda el contenido de texto en un archivo TXT dentro de un subdirectorio.
+    Guarda el diccionario de datos del documento en un archivo TXT formateado.
     """
-    if not content:
-        print(f"  > No hay contenido para guardar en {filename}.")
+    if not data or not data.get("texto_providencia"):
+        print(f"  > No hay contenido de providencia para guardar en {filename}.")
         return
 
     try:
@@ -58,13 +59,42 @@ def save_to_txt(content, filename, subdirectory):
 
         print(f"  > Guardando documento de texto en {filepath}...")
 
+        # Formatear el contenido del TXT
+        content = []
+        content.append(f"Expediente: {data.get('expediente_nro', 'N/D')}")
+        content.append(f"Carátula: {data.get('caratula', 'N/D')}")
+        content.append(f"Dependencia: {data.get('dependencia', 'N/D')}")
+        content.append(f"Secretaría: {data.get('secretaria', 'N/D')}")
+        content.append("=" * 40)
+        content.append(f"Nombre Escrito: {data.get('nombre_escrito', 'N/D')}")
+        content.append(f"Código Validación: {data.get('codigo_validacion', 'N/D')}")
+        content.append("=" * 40)
+        content.append("\nTEXTO DE LA PROVIDENCIA:\n")
+        content.append(data.get("texto_providencia", "SIN TEXTO"))
+        content.append("\n" + "=" * 40)
+        content.append("\nFIRMANTES:\n")
+
+        if data.get("firmantes"):
+            for f in data["firmantes"]:
+                content.append(
+                    f"  - {f.get('nombre')} ({f.get('cargo')}) - {f.get('fecha')}"
+                )
+        else:
+            content.append("  N/D")
+
+        final_text = "\n".join(content)
+
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
+            f.write(final_text)
 
     except Exception as e:
         print(f"  > Error al guardar TXT: {e}")
 
 
+# --- FIN FUNCIÓN MODIFICADA ---
+
+
+# --- ¡FUNCIÓN MODIFICADA! ---
 def read_csv_to_dict(filepath):
     """Lee un archivo CSV y lo devuelve como una lista de diccionarios."""
     try:
@@ -72,9 +102,14 @@ def read_csv_to_dict(filepath):
             reader = csv.DictReader(f)
             return list(reader)
     except FileNotFoundError:
-        # Esto no es un error fatal, solo significa que el CSV no existe
-        # (por ejemplo, si 2_get_movimientos no se ha ejecutado)
+        # Mensaje genérico, ya que puede ser el CSV de lista o de movimientos
+        print(
+            f"  > Nota: No se encontró el archivo '{filepath}'. Se creará si es necesario."
+        )
         return None
     except Exception as e:
-        print(f"Error al leer el CSV '{filepath}': {e}")
+        print(f"Error al leer el CSV: {e}")
         return None
+
+
+# --- FIN FUNCIÓN MODIFICADA ---

@@ -162,29 +162,112 @@ def parse_movimientos_from_ajax_html(html_movimientos, nro_expediente):
     return movimientos_list
 
 
-def parse_document_text(html_text):
+# --- ¡NUEVA FUNCIÓN AÑADIDA! ---
+def parse_document_page(html_text):
     """
-    Extrae el texto principal del contenido de un movimiento/escrito.
-    Basado en la estructura del editor Quill (div#editor-container).
+    Extrae todos los datos estructurados de la página de un escrito.
+    Devuelve un diccionario.
     """
     soup = BeautifulSoup(html_text, "html.parser")
+    data = {"firmantes": []}
 
-    # El texto del documento está dentro del div con id='editor-container'
-    editor_container = soup.find(id="editor-container")
+    try:
+        # --- 1. Extraer datos del Expediente (Primera tabla) ---
+        # Buscamos la tabla que contiene el escudo de Santa Cruz
+        table_expediente = soup.find("img", {"src": re.compile(r"SCescudo\.png")})
+        if table_expediente:
+            table_expediente = table_expediente.find_parent("table")
 
-    if not editor_container:
-        # Fallback por si no se encuentra el contenedor principal
-        return "ERROR: No se pudo encontrar el div '#editor-container' en el HTML del documento."
+        if table_expediente:
+            rows = table_expediente.find_all("tr")
+            if len(rows) > 5:
+                # Expediente: 18559/2024 (en rows[1])
+                exp_tag = rows[1].find("strong", class_="Estilo1")
+                if exp_tag:
+                    data["expediente_nro"] = (
+                        exp_tag.get_text(strip=True).replace("Expediente:", "").strip()
+                    )
 
-    # Usamos .get_text() para extraer todo el texto de los <p> y <span> internos.
-    # separator='\n' ayuda a preservar los saltos de línea entre párrafos.
-    text = editor_container.get_text(separator="\n", strip=True)
+                # Dependencia (en rows[2])
+                dep_tag = rows[2].find("strong")
+                if dep_tag:
+                    data["dependencia"] = dep_tag.get_text(strip=True)
 
-    # Limpieza adicional: eliminar líneas vacías duplicadas
-    clean_lines = []
-    for line in text.splitlines():
-        stripped_line = line.strip()
-        if stripped_line:
-            clean_lines.append(stripped_line)
+                # Secretaría (en rows[3])
+                sec_tag = rows[3].find("strong")
+                if sec_tag:
+                    data["secretaria"] = sec_tag.get_text(strip=True)
 
-    return "\n".join(clean_lines)
+                # Carátula (en rows[5])
+                car_tag = rows[5].find("strong")
+                if car_tag:
+                    data["caratula"] = (
+                        car_tag.get_text(strip=True).replace("Cáratula:", "").strip()
+                    )
+
+        # --- 2. Extraer datos del Escrito (Segunda tabla) ---
+        # Buscamos la tabla que contiene el "Código de Validación"
+        table_documento = soup.find(
+            "strong", string=re.compile(r"Código de Validación:")
+        )
+        if table_documento:
+            table_documento = table_documento.find_parent("table")
+
+        if table_documento:
+            rows = table_documento.find_all("tr")
+            if len(rows) > 1:
+                cols = rows[1].find_all("td")
+                if len(cols) > 0:
+                    # Nombre: PE1239398-2025
+                    data["nombre_escrito"] = (
+                        cols[0].get_text(strip=True).replace("Nombre:", "").strip()
+                    )
+
+                # Código de Validación: 2u5vts
+                cod_tag = rows[1].find("strong")
+                if cod_tag:
+                    data["codigo_validacion"] = (
+                        cod_tag.get_text(strip=True)
+                        .replace("Código de Validación:", "")
+                        .strip()
+                    )
+
+        # --- 3. Extraer Texto de la Providencia (div#editor-container) ---
+        editor = soup.find(id="editor-container")
+        if editor:
+            text = editor.get_text(separator="\n", strip=True)
+            clean_lines = [line.strip() for line in text.splitlines() if line.strip()]
+            data["texto_providencia"] = "\n".join(clean_lines)
+        else:
+            data["texto_providencia"] = (
+                "ERROR: No se pudo encontrar el contenedor de texto."
+            )
+
+        # --- 4. Extraer Firmantes (Última tabla) ---
+        table_firmantes = soup.find(
+            "strong", string=re.compile(r"Firmado electrónicamente por")
+        )
+        if table_firmantes:
+            table_firmantes = table_firmantes.find_parent("table")
+
+        if table_firmantes:
+            # Empezar a buscar desde la fila de títulos (Cargo, Apellido, Fecha)
+            header_row = table_firmantes.find("td", string=re.compile(r"Cargo"))
+            if header_row:
+                # Iterar sobre las filas hermanas que vienen *después* de la cabecera
+                for row in header_row.find_parent("tr").find_next_siblings("tr"):
+                    cols = row.find_all("td")
+                    if len(cols) == 3:
+                        cargo = cols[0].get_text(strip=True)
+                        nombre = cols[1].get_text(strip=True)
+                        fecha = cols[2].get_text(strip=True)
+                        if cargo and nombre:  # Asegurarse de que no sea una fila vacía
+                            data["firmantes"].append(
+                                {"cargo": cargo, "nombre": nombre, "fecha": fecha}
+                            )
+
+    except Exception as e:
+        print(f"   > !!! Error parseando HTML del documento: {e}")
+        data["texto_providencia"] = f"ERROR AL PARSEAR HTML: {e}"
+
+    return data
