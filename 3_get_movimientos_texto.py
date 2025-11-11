@@ -1,4 +1,4 @@
-# 3_get_movimientos_and_docs.py
+# marianodevel/scraping_siped/marianodevel-scraping_siped-c1d54d11d3b59f2e8f0a682b7ed49cc9c0bba71f/3_get_movimientos_and_docs.py
 import os
 import time
 from session_manager import SessionManager
@@ -104,7 +104,7 @@ def main_movimientos_y_documentos():
                 doc_url = movement.get("link_escrito")
 
                 # Solo procesar si tiene un link_escrito
-                if doc_url:
+                if doc_url and doc_url.strip():
                     document_count += 1
 
                     # Nombre de archivo TXT correlativo (01.txt, 02.txt)
@@ -151,6 +151,23 @@ def main_movimientos_y_documentos():
                         pass  # Continuar con el siguiente documento
 
             print(f"  > Descarga de documentos finalizada para {nro_expediente}.")
+
+            # --- ¡NUEVO! PASO 7: Compilar PDF ---
+            if movements and document_count > 0:
+                # El PDF se guardará en el directorio padre 'documentos_expedientes'
+                # con el mismo nombre que la carpeta
+                pdf_filename = f"{expediente_folder_name}.pdf"
+                pdf_output_path = os.path.join(
+                    config.DOCUMENTOS_OUTPUT_DIR, pdf_filename
+                )
+
+                # Comprobar si el PDF ya existe para no regenerarlo
+                if os.path.exists(pdf_output_path):
+                    print(f"  > PDF '{pdf_filename}' ya existe, saltando compilación.")
+                else:
+                    # Llamar a la nueva función de utils
+                    utils.compile_texts_to_pdf(expediente_folder_path, pdf_output_path)
+            # --- FIN NUEVO PASO ---
 
     except Exception as e:
         print(f"\nError fatal durante la Fase 3: {e}")

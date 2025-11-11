@@ -1,7 +1,8 @@
-# marianodevel/scraping_siped/marianodevel-scraping_siped-c1d54d11d3b59f2e8f0a682b7ed49cc9c0bba71f/utils.py
+# utils.py
 import csv
 import os
 import re
+from fpdf import FPDF
 
 
 def sanitize_filename(name):
@@ -43,7 +44,6 @@ def save_to_csv(data, filename, subdirectory="."):
         print(f"  > Error al guardar CSV: {e}")
 
 
-# --- ¡FUNCIÓN MODIFICADA! ---
 def save_to_txt(data, filename, subdirectory):
     """
     Guarda el diccionario de datos del documento en un archivo TXT formateado.
@@ -91,10 +91,6 @@ def save_to_txt(data, filename, subdirectory):
         print(f"  > Error al guardar TXT: {e}")
 
 
-# --- FIN FUNCIÓN MODIFICADA ---
-
-
-# --- ¡FUNCIÓN MODIFICADA! ---
 def read_csv_to_dict(filepath):
     """Lee un archivo CSV y lo devuelve como una lista de diccionarios."""
     try:
@@ -112,4 +108,105 @@ def read_csv_to_dict(filepath):
         return None
 
 
-# --- FIN FUNCIÓN MODIFICADA ---
+# --- ¡FUNCIÓN MODIFICADA! ---
+def compile_texts_to_pdf(source_directory, output_pdf_path):
+    """
+    Lee todos los .txt de un directorio, los ordena y los compila en un PDF.
+    Intenta usar la fuente Roboto (que debe estar instalada en el sistema)
+    y vuelve a Arial si falla.
+    """
+    print(f"  > Compilando PDF en: {output_pdf_path}...")
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Usaremos "Roboto" como el nombre de la familia en FPDF
+    font_family = "Roboto"
+    text_sanitized = False  # Flag para fallback
+
+    try:
+        # --- INICIO DE LA CORRECCIÓN ---
+        # Le decimos a FPDF que registre la fuente "Roboto"
+        # buscando los archivos .ttf en las rutas del sistema.
+
+        pdf.add_font(font_family, "", "Roboto-Regular.ttf")
+        pdf.add_font(font_family, "B", "Roboto-Bold.ttf")
+
+        # Ahora que la fuente está añadida, la usamos.
+        pdf.set_font(font_family, size=10)
+        # --- FIN DE LA CORRECCIÓN ---
+
+    except (FileNotFoundError, RuntimeError) as e:
+        # Este es el bloque de fallback si FPDF no encuentra las fuentes
+        print(f"  > !!! ADVERTENCIA DE FUENTE: {e}")
+        print(
+            "  > No se pudieron encontrar 'Roboto-Regular.ttf' o 'Roboto-Bold.ttf' en las rutas del sistema."
+        )
+        print("  > Volviendo a 'Arial'. Caracteres especiales se reemplazarán por '?'.")
+
+        font_family = "Arial"  # Fallback
+        text_sanitized = True  # Marcar que necesitamos sanitizar el texto
+        pdf.set_font(font_family, size=10)
+
+    try:
+        # 1. Encontrar y ordenar los archivos .txt
+        txt_files = [f for f in os.listdir(source_directory) if f.endswith(".txt")]
+        txt_files.sort()
+
+        if not txt_files:
+            print("  > No se encontraron archivos .txt para compilar.")
+            return
+
+        for txt_file in txt_files:
+            txt_path = os.path.join(source_directory, txt_file)
+
+            pdf.add_page()
+
+            # Título de la página
+            pdf.set_font(font_family, "B", 14)
+
+            title_to_write = txt_file
+            if text_sanitized:
+                title_to_write = txt_file.encode("latin-1", "replace").decode("latin-1")
+            pdf.cell(0, 10, title_to_write, ln=True, align="C")
+
+            pdf.ln(5)
+
+            # Contenido del archivo
+            pdf.set_font(font_family, size=10)
+
+            text_content = ""
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    text_content = f.read()
+
+                text_to_write = text_content
+                if text_sanitized:
+                    # Si estamos en modo fallback, sanitizamos
+                    text_to_write = text_content.encode("latin-1", "replace").decode(
+                        "latin-1"
+                    )
+
+                pdf.multi_cell(0, 5, text_to_write)
+
+            except Exception as e:
+                print(f"    > Error leyendo {txt_file}: {e}")
+                error_msg = f"Error al leer el archivo: {e}"
+                if text_sanitized:
+                    error_msg = error_msg.encode("latin-1", "replace").decode("latin-1")
+                pdf.multi_cell(0, 5, error_msg)
+
+        pdf.output(output_pdf_path)
+
+        if text_sanitized:
+            print(
+                f"  > PDF guardado (modo fallback, caracteres no compatibles reemplazados por '?')."
+            )
+        else:
+            print(f"  > PDF guardado exitosamente con fuente Unicode.")
+
+    except Exception as e:
+        print(f"  > !!! ERROR al generar PDF: {e}")
+        import traceback
+
+        traceback.print_exc()
