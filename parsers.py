@@ -162,7 +162,7 @@ def parse_movimientos_from_ajax_html(html_movimientos, nro_expediente):
     return movimientos_list
 
 
-# --- ¡NUEVA FUNCIÓN AÑADIDA! ---
+# --- ¡FUNCIÓN MODIFICADA! ---
 def parse_document_page(html_text):
     """
     Extrae todos los datos estructurados de la página de un escrito.
@@ -173,7 +173,6 @@ def parse_document_page(html_text):
 
     try:
         # --- 1. Extraer datos del Expediente (Primera tabla) ---
-        # Buscamos la tabla que contiene el escudo de Santa Cruz
         table_expediente = soup.find("img", {"src": re.compile(r"SCescudo\.png")})
         if table_expediente:
             table_expediente = table_expediente.find_parent("table")
@@ -181,7 +180,7 @@ def parse_document_page(html_text):
         if table_expediente:
             rows = table_expediente.find_all("tr")
             if len(rows) > 5:
-                # Expediente: 18559/2024 (en rows[1])
+                # Expediente: (en rows[1])
                 exp_tag = rows[1].find("strong", class_="Estilo1")
                 if exp_tag:
                     data["expediente_nro"] = (
@@ -206,7 +205,6 @@ def parse_document_page(html_text):
                     )
 
         # --- 2. Extraer datos del Escrito (Segunda tabla) ---
-        # Buscamos la tabla que contiene el "Código de Validación"
         table_documento = soup.find(
             "strong", string=re.compile(r"Código de Validación:")
         )
@@ -215,22 +213,27 @@ def parse_document_page(html_text):
 
         if table_documento:
             rows = table_documento.find_all("tr")
-            if len(rows) > 1:
-                cols = rows[1].find_all("td")
+            # El índice 0 es <tr><td></td></tr>
+            # El índice 1 es <tr><td ...><strong> Origen: ...</strong></td></tr>
+            # El índice 2 es <tr><td ...> Nombre: ...</td><td ...><strong> Cod. Val.: ...</strong></td>...</tr>
+            if len(rows) > 2:  # Necesitamos la fila en el índice 2
+                cols = rows[2].find_all("td")  # Obtener celdas de la TERCERA fila
                 if len(cols) > 0:
-                    # Nombre: PE1239398-2025
+                    # Nombre: (en cols[0])
                     data["nombre_escrito"] = (
                         cols[0].get_text(strip=True).replace("Nombre:", "").strip()
                     )
 
-                # Código de Validación: 2u5vts
-                cod_tag = rows[1].find("strong")
-                if cod_tag:
-                    data["codigo_validacion"] = (
-                        cod_tag.get_text(strip=True)
-                        .replace("Código de Validación:", "")
-                        .strip()
-                    )
+                if len(cols) > 1:
+                    # Código de Validación: (en cols[1])
+                    cod_tag = cols[1].find("strong")
+                    if cod_tag:
+                        data["codigo_validacion"] = (
+                            cod_tag.get_text(strip=True)
+                            .replace("Código de Validación:", "")
+                            .strip()
+                        )
+        # --- FIN DE LA CORRECCIÓN DE PARSEO ---
 
         # --- 3. Extraer Texto de la Providencia (div#editor-container) ---
         editor = soup.find(id="editor-container")

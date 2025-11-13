@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scraper de Expedientes - Flask/Celery</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/dark.css">
+    <style>
+        body { max-width: 1000px; margin: auto; padding: 1rem; }
+        .phase-container {
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            background: var(--background-alt);
+        }
+        .phase-control {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .status-badge {
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            color: #333; 
+            min-width: 80px; 
+            text-align: center;
+        }
+        /* Colores de estado mejorados */
+        .status-PENDING, .status-RETRY { background-color: #ffc107; } 
+        .status-STARTED { background-color: #007bff; color: #fff; } 
+        .status-SUCCESS, .status-IDLE { background-color: #28a745; color: #fff; } 
+        .status-FAILURE, .status-REVOKED { background-color: #dc3545; color: #fff; } 
+        .file-list { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        .flash {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 5px;
+        }
+        .flash.success { background-color: #004d00; }
+        .flash.warning { background-color: #664d00; }
+        .flash.info { background-color: #004a66; }
+        .phase-info { margin-top: 10px; font-size: 0.85em; }
+    </style>
+</head>
+<body>
+    <h1>Scraper de Expedientes</h1>
+    <p>La aplicación utiliza Celery (Worker) para ejecutar las fases en segundo plano.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <h2>Control de Fases</h2>
+    
+    {% set phases = [
+        ('phase_1', 'Obtener Lista Maestra (CSV)', 'Descarga la lista completa de expedientes y guarda el archivo maestro <code>expedientes_completos.csv</code>.'),
+        ('phase_2', 'Descargar Movimientos (CSVs Individuales)', 'Requiere Fase 1. Descarga los movimientos para cada expediente y los guarda en <code>movimientos_expedientes/*.csv</code>.'),
+        ('phase_3', 'Descargar Texto y Compilar PDF', 'Requiere Fase 2. Descarga el texto de cada movimiento (.txt) y compila un <code>.pdf</code> por expediente.')
+    ] %}
+
+    {% for phase_id, title, description in phases %}
+    <div class="phase-container" id="{{ phase_id }}-container">
+        <div class="phase-control">
+            <h3>Fase {{ phase_id.split('_')[1] }}: {{ title }}</h3>
+            <div id="status-{{ phase_id }}">
+                Estado: <span class="status-badge status-{{ task_statuses[phase_id].state }}">{{ task_statuses[phase_id].state }}</span>
+            </div>
+        </div>
+        <p>{{ description | safe }}</p>
+        <form action="{{ url_for('start_phase', phase=phase_id) }}" method="POST">
+            <button type="submit" data-phase="{{ phase_id }}" 
+                {% if task_statuses[phase_id].state in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                {% if task_statuses[phase_id].state in ['PENDING', 'STARTED', 'RETRY'] %}PROCESANDO...{% else %}Iniciar Fase {{ phase_id.split('_')[1] }}{% endif %}
+            </button>
+        </form>
+        <div class="phase-info">
+            Resultado: {{ task_statuses[phase_id].result or '...' }}
+            <br><a href="{{ url_for('reset_task', phase=phase_id) }}" style="font-size:0.8em">Resetear Estado (Solo si falló)</a>
+        </div>
+    </div>
+    {% endfor %}
+
+
+    <h2>PDFs Compilados</h2>
+    <div class="file-list" id="pdf-list">
+        {% if pdf_files %}
+            {% for file in pdf_files %}
+                <div class="file-item">
+                    <a href="{{ url_for('download_file', filename=file) }}" target="_blank">
+                        ⬇️ {{ file }}
+                    </a>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No se han encontrado PDFs compilados.</p>
+        {% endif %}
+    </div>
+
+    <script>
+        const PHASES = ['phase_1', 'phase_2', 'phase_3'];
+        let intervalId = null;
+
+        const updateUI = (phase, status) => {
+            const statusDiv = document.getElementById(`status-${phase}`);
+            const button = document.querySelector(`button[data-phase="${phase}"]`);
+            const resultDiv = button.parentElement.nextElementSibling;
+            
+            // 1. Actualizar el badge de estado
+            if (statusDiv) {
+                const badge = statusDiv.querySelector('.status-badge');
+                badge.className = `status-badge status-${status.state.replace('SUCCESS', 'IDLE')}`; // Mapear SUCCESS a IDLE para el color
+                badge.textContent = status.state;
+            }
+
+            // 2. Actualizar el resultado de la tarea
+            if (resultDiv) {
+                const displayResult = String(status.result).substring(0, 70) + 
+                                      (String(status.result).length > 70 ? '...' : '');
+                resultDiv.querySelector('.phase-info').textContent = `Resultado: ${displayResult}`;
+            }
+
+            // 3. Control de botones
+            if (button) {
+                if (['PENDING', 'STARTED', 'RETRY'].includes(status.state)) {
+                    button.disabled = true;
+                    button.textContent = 'PROCESANDO...';
+                } else {
+                    // Estado final (SUCCESS, FAILURE, IDLE)
+                    button.disabled = false;
+                    button.textContent = `Iniciar Fase ${phase.split('_')[1]}`;
+                }
+            }
+        };
+
+        const checkAllStatuses = async () => {
+            let tasks_running = false;
+
+            for (const phase of PHASES) {
+                try {
+                    const response = await fetch(`/task-status/${phase}`);
+                    const status = await response.json();
+                    
+                    updateUI(phase, status);
+
+                    if (['PENDING', 'STARTED', 'RETRY'].includes(status.state)) {
+                        tasks_running = true;
+                    }
+                    
+                    // Lógica de recarga: Si una tarea acaba de terminar, recargamos.
+                    // Esto se basa en el flag 'refresh' que Flask añade
+                    if (status.refresh) {
+                        console.log(`Fase ${phase} terminada. Recargando para actualizar la lista de archivos.`);
+                        location.reload();
+                        return; // Detener el bucle y la consulta
+                    }
+
+                } catch (error) {
+                    console.error(`Error al consultar estado de ${phase}:`, error);
+                }
+            }
+
+            // Si no hay tareas corriendo, detenemos la consulta AJAX
+            if (!tasks_running) {
+                console.log("Consulta de estado detenida. Todas las tareas están IDLE/Finalizadas.");
+                clearInterval(intervalId);
+                intervalId = null; 
+            }
+        };
+
+        // Lógica de inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            const initialStatuses = {{ task_statuses | tojson }};
+            let shouldStartPolling = false;
+
+            PHASES.forEach(phase => {
+                const status = initialStatuses[phase].state;
+                // Si la página se carga con alguna tarea en curso, iniciamos el sondeo.
+                if (['PENDING', 'STARTED', 'RETRY'].includes(status)) {
+                    shouldStartPolling = true;
+                }
+            });
+
+            if (shouldStartPolling && !intervalId) {
+                console.log("Tareas detectadas en curso. Iniciando sondeo AJAX cada 3 segundos.");
+                intervalId = setInterval(checkAllStatuses, 3000); 
+            }
+        });
+    </script>
+</body>
+</html>
