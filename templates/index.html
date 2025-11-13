@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scraper de Expedientes - Flask/Celery</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/dark.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10" defer></script> 
     <style>
         body { max-width: 1000px; margin: auto; padding: 1rem; }
-        .phase-container {
+        .fase-container { 
             border: 1px solid var(--border-color);
             padding: 1.5rem;
             margin-bottom: 2rem;
             border-radius: 8px;
             background: var(--background-alt);
         }
-        .phase-control {
+        .fase-control { 
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -28,7 +29,6 @@
             min-width: 80px; 
             text-align: center;
         }
-        /* Colores de estado mejorados */
         .status-PENDING, .status-RETRY { background-color: #ffc107; } 
         .status-STARTED { background-color: #007bff; color: #fff; } 
         .status-SUCCESS, .status-IDLE { background-color: #28a745; color: #fff; } 
@@ -46,154 +46,96 @@
         .flash.success { background-color: #004d00; }
         .flash.warning { background-color: #664d00; }
         .flash.info { background-color: #004a66; }
-        .phase-info { margin-top: 10px; font-size: 0.85em; }
+        .fase-info { margin-top: 10px; font-size: 0.85em; } 
     </style>
 </head>
-<body>
+<body hx-headers='{"Cache-Control": "no-cache"}'>
     <h1>Scraper de Expedientes</h1>
     <p>La aplicación utiliza Celery (Worker) para ejecutar las fases en segundo plano.</p>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="flash {{ category }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+    <div id="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+
 
     <h2>Control de Fases</h2>
     
-    {% set phases = [
-        ('phase_1', 'Obtener Lista Maestra (CSV)', 'Descarga la lista completa de expedientes y guarda el archivo maestro <code>expedientes_completos.csv</code>.'),
-        ('phase_2', 'Descargar Movimientos (CSVs Individuales)', 'Requiere Fase 1. Descarga los movimientos para cada expediente y los guarda en <code>movimientos_expedientes/*.csv</code>.'),
-        ('phase_3', 'Descargar Texto y Compilar PDF', 'Requiere Fase 2. Descarga el texto de cada movimiento (.txt) y compila un <code>.pdf</code> por expediente.')
+    {% set fases = [
+        ('fase_1', 'Obtener Lista Maestra (CSV)', 'Descarga la lista completa de expedientes y guarda el archivo maestro <code>expedientes_completos.csv</code>.'),
+        ('fase_2', 'Descargar Movimientos (CSVs Individuales)', 'Requiere Fase 1. Descarga los movimientos para cada expediente y los guarda en <code>movimientos_expedientes/*.csv</code>.'),
+        ('fase_3', 'Descargar Texto y Compilar PDF', 'Requiere Fase 2. Descarga el texto de cada movimiento (.txt) y compila un <code>.pdf</code> por expediente.')
     ] %}
 
-    {% for phase_id, title, description in phases %}
-    <div class="phase-container" id="{{ phase_id }}-container">
-        <div class="phase-control">
-            <h3>Fase {{ phase_id.split('_')[1] }}: {{ title }}</h3>
-            <div id="status-{{ phase_id }}">
-                Estado: <span class="status-badge status-{{ task_statuses[phase_id].state }}">{{ task_statuses[phase_id].state }}</span>
-            </div>
+    {% for id_fase, titulo, descripcion in fases %}
+    <div class="fase-container" id="{{ id_fase }}-container">
+        <div class="fase-control">
+            <h3>Fase {{ id_fase.split('_')[1] | upper }}: {{ titulo }}</h3>
         </div>
-        <p>{{ description | safe }}</p>
-        <form action="{{ url_for('start_phase', phase=phase_id) }}" method="POST">
-            <button type="submit" data-phase="{{ phase_id }}" 
-                {% if task_statuses[phase_id].state in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
-                {% if task_statuses[phase_id].state in ['PENDING', 'STARTED', 'RETRY'] %}PROCESANDO...{% else %}Iniciar Fase {{ phase_id.split('_')[1] }}{% endif %}
+        <p>{{ descripcion | safe }}</p>
+        
+        <div id="estado-resultado-{{ id_fase }}" 
+             hx-get="{{ url_for('fragmento_estado', nombre_fase=id_fase) }}" 
+             hx-trigger="load, every 3s" 
+             hx-swap="innerHTML">
+            
+             {% with estado=estados_tareas[id_fase] %}
+                {% include '_fragmento_estado.html' %}
+             {% endwith %}
+             </div>
+
+        <form hx-post="{{ url_for('iniciar_fase', nombre_fase=id_fase) }}" 
+              hx-target="#flash-messages" 
+              hx-swap="outerHTML">
+            <button type="submit" data-fase="{{ id_fase }}" 
+                {% if estados_tareas[id_fase].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                Iniciar Fase {{ id_fase.split('_')[1] }}
             </button>
         </form>
-        <div class="phase-info">
-            Resultado: {{ task_statuses[phase_id].result or '...' }}
-            <br><a href="{{ url_for('reset_task', phase=phase_id) }}" style="font-size:0.8em">Resetear Estado (Solo si falló)</a>
-        </div>
     </div>
     {% endfor %}
 
 
     <h2>PDFs Compilados</h2>
-    <div class="file-list" id="pdf-list">
-        {% if pdf_files %}
-            {% for file in pdf_files %}
-                <div class="file-item">
-                    <a href="{{ url_for('download_file', filename=file) }}" target="_blank">
-                        ⬇️ {{ file }}
-                    </a>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>No se han encontrado PDFs compilados.</p>
-        {% endif %}
-    </div>
+    <div class="file-list" id="pdf-list-container"
+         hx-get="{{ url_for('fragmento_pdfs') }}"
+         hx-trigger="load, tareaFinalizada from body"
+         hx-swap="innerHTML">
+        
+        {% with archivos_pdf=archivos_pdf %}
+            {% include '_fragmento_pdfs.html' %}
+        {% endwith %}
+        </div>
 
     <script>
-        const PHASES = ['phase_1', 'phase_2', 'phase_3'];
-        let intervalId = null;
-
-        const updateUI = (phase, status) => {
-            const statusDiv = document.getElementById(`status-${phase}`);
-            const button = document.querySelector(`button[data-phase="${phase}"]`);
-            const resultDiv = button.parentElement.nextElementSibling;
+        // Disparamos un evento global si una tarea ha finalizado para forzar la actualización de PDFs y estados.
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
             
-            // 1. Actualizar el badge de estado
-            if (statusDiv) {
-                const badge = statusDiv.querySelector('.status-badge');
-                badge.className = `status-badge status-${status.state.replace('SUCCESS', 'IDLE')}`; // Mapear SUCCESS a IDLE para el color
-                badge.textContent = status.state;
-            }
+            // 1. Si se actualizó un contenedor de estado:
+            if (evt.target.id && evt.target.id.startsWith('estado-resultado-')) {
+                const badge = evt.target.querySelector('.status-badge');
+                if (!badge) return;
 
-            // 2. Actualizar el resultado de la tarea
-            if (resultDiv) {
-                const displayResult = String(status.result).substring(0, 70) + 
-                                      (String(status.result).length > 70 ? '...' : '');
-                resultDiv.querySelector('.phase-info').textContent = `Resultado: ${displayResult}`;
-            }
+                const status = badge.textContent.trim();
+                
+                // Si el estado es FINAL (SUCCESS o FAILURE, pero no IDLE)
+                if (['SUCCESS', 'FAILURE', 'REVOKED'].includes(status) && status !== 'IDLE') {
+                    // Disparamos el evento global
+                    document.body.dispatchEvent(new Event('tareaFinalizada'));
 
-            // 3. Control de botones
-            if (button) {
-                if (['PENDING', 'STARTED', 'RETRY'].includes(status.state)) {
-                    button.disabled = true;
-                    button.textContent = 'PROCESANDO...';
-                } else {
-                    // Estado final (SUCCESS, FAILURE, IDLE)
-                    button.disabled = false;
-                    button.textContent = `Iniciar Fase ${phase.split('_')[1]}`;
-                }
-            }
-        };
-
-        const checkAllStatuses = async () => {
-            let tasks_running = false;
-
-            for (const phase of PHASES) {
-                try {
-                    const response = await fetch(`/task-status/${phase}`);
-                    const status = await response.json();
-                    
-                    updateUI(phase, status);
-
-                    if (['PENDING', 'STARTED', 'RETRY'].includes(status.state)) {
-                        tasks_running = true;
+                    // Forzamos el desbloqueo del botón
+                    const faseId = evt.target.id.replace('estado-resultado-', '');
+                    const button = document.querySelector(`button[data-fase="${faseId}"]`);
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = `Iniciar Fase ${faseId.split('_')[1]}`;
                     }
-                    
-                    // Lógica de recarga: Si una tarea acaba de terminar, recargamos.
-                    // Esto se basa en el flag 'refresh' que Flask añade
-                    if (status.refresh) {
-                        console.log(`Fase ${phase} terminada. Recargando para actualizar la lista de archivos.`);
-                        location.reload();
-                        return; // Detener el bucle y la consulta
-                    }
-
-                } catch (error) {
-                    console.error(`Error al consultar estado de ${phase}:`, error);
                 }
-            }
-
-            // Si no hay tareas corriendo, detenemos la consulta AJAX
-            if (!tasks_running) {
-                console.log("Consulta de estado detenida. Todas las tareas están IDLE/Finalizadas.");
-                clearInterval(intervalId);
-                intervalId = null; 
-            }
-        };
-
-        // Lógica de inicialización
-        document.addEventListener('DOMContentLoaded', () => {
-            const initialStatuses = {{ task_statuses | tojson }};
-            let shouldStartPolling = false;
-
-            PHASES.forEach(phase => {
-                const status = initialStatuses[phase].state;
-                // Si la página se carga con alguna tarea en curso, iniciamos el sondeo.
-                if (['PENDING', 'STARTED', 'RETRY'].includes(status)) {
-                    shouldStartPolling = true;
-                }
-            });
-
-            if (shouldStartPolling && !intervalId) {
-                console.log("Tareas detectadas en curso. Iniciando sondeo AJAX cada 3 segundos.");
-                intervalId = setInterval(checkAllStatuses, 3000); 
             }
         });
     </script>

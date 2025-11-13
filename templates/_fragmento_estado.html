@@ -1,0 +1,20 @@
+<div class="fase-control">
+  <div id="estado-{{ id_fase }}">
+    Estado:
+    <span class="status-badge status-{{ estado.estado }}"
+      >{{ estado.estado }}</span
+    >
+  </div>
+</div>
+<div class="fase-info">
+  Resultado: {{ estado.resultado or '...' }}
+  <br /><a
+    href="{{ url_for('resetear_estado', nombre_fase=id_fase) }}"
+    hx-get="{{ url_for('resetear_estado', nombre_fase=id_fase) }}"
+    hx-target="#flash-messages"
+    hx-swap="outerHTML"
+    hx-trigger="click"
+    style="font-size: 0.8em"
+    >Resetear Estado (Solo si falló)</a
+  >
+</div>

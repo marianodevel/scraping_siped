@@ -5,9 +5,10 @@ import re
 from fpdf import FPDF
 
 
-def sanitize_filename(name):
+def limpiar_nombre_archivo(name):
     """
     Limpia un string para que sea un nombre de archivo válido.
+    (Original: sanitize_filename)
     """
     if not name:
         name = "SIN_NOMBRE"
@@ -19,9 +20,10 @@ def sanitize_filename(name):
     return name[:150].strip()
 
 
-def save_to_csv(data, filename, subdirectory="."):
+def guardar_a_csv(data, filename, subdirectory="."):
     """
     Guarda una lista de diccionarios en un archivo CSV dentro de un subdirectorio.
+    (Original: save_to_csv)
     """
     if not data:
         print(f"  > No hay datos para guardar en {filename}.")
@@ -44,9 +46,10 @@ def save_to_csv(data, filename, subdirectory="."):
         print(f"  > Error al guardar CSV: {e}")
 
 
-def save_to_txt(data, filename, subdirectory):
+def guardar_a_txt(data, filename, subdirectory):
     """
     Guarda el diccionario de datos del documento en un archivo TXT formateado.
+    (Original: save_to_txt)
     """
     if not data or not data.get("texto_providencia"):
         print(f"  > No hay contenido de providencia para guardar en {filename}.")
@@ -91,14 +94,16 @@ def save_to_txt(data, filename, subdirectory):
         print(f"  > Error al guardar TXT: {e}")
 
 
-def read_csv_to_dict(filepath):
-    """Lee un archivo CSV y lo devuelve como una lista de diccionarios."""
+def leer_csv_a_diccionario(filepath):
+    """
+    Lee un archivo CSV y lo devuelve como una lista de diccionarios.
+    (Original: read_csv_to_dict)
+    """
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             return list(reader)
     except FileNotFoundError:
-        # Mensaje genérico, ya que puede ser el CSV de lista o de movimientos
         print(
             f"  > Nota: No se encontró el archivo '{filepath}'. Se creará si es necesario."
         )
@@ -108,48 +113,38 @@ def read_csv_to_dict(filepath):
         return None
 
 
-# --- ¡FUNCIÓN MODIFICADA! ---
-def compile_texts_to_pdf(source_directory, output_pdf_path):
+def compilar_textos_a_pdf(source_directory, output_pdf_path):
     """
     Lee todos los .txt de un directorio, los ordena y los compila en un PDF.
-    Intenta usar la fuente Roboto (que debe estar instalada en el sistema)
-    y vuelve a Arial si falla.
+    (Original: compile_texts_to_pdf)
     """
     print(f"  > Compilando PDF en: {output_pdf_path}...")
 
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Usaremos "Roboto" como el nombre de la familia en FPDF
     font_family = "Roboto"
-    text_sanitized = False  # Flag para fallback
+    text_sanitized = False
 
     try:
-        # --- INICIO DE LA CORRECCIÓN ---
-        # Le decimos a FPDF que registre la fuente "Roboto"
-        # buscando los archivos .ttf en las rutas del sistema.
-
+        # Asume que los archivos Roboto-Regular.ttf y Roboto-Bold.ttf están en el directorio
         pdf.add_font(font_family, "", "Roboto-Regular.ttf")
         pdf.add_font(font_family, "B", "Roboto-Bold.ttf")
 
-        # Ahora que la fuente está añadida, la usamos.
         pdf.set_font(font_family, size=10)
-        # --- FIN DE LA CORRECCIÓN ---
 
     except (FileNotFoundError, RuntimeError) as e:
-        # Este es el bloque de fallback si FPDF no encuentra las fuentes
         print(f"  > !!! ADVERTENCIA DE FUENTE: {e}")
         print(
-            "  > No se pudieron encontrar 'Roboto-Regular.ttf' o 'Roboto-Bold.ttf' en las rutas del sistema."
+            "  > No se pudieron encontrar 'Roboto-Regular.ttf' o 'Roboto-Bold.ttf' en el directorio."
         )
         print("  > Volviendo a 'Arial'. Caracteres especiales se reemplazarán por '?'.")
 
-        font_family = "Arial"  # Fallback
-        text_sanitized = True  # Marcar que necesitamos sanitizar el texto
+        font_family = "Arial"
+        text_sanitized = True
         pdf.set_font(font_family, size=10)
 
     try:
-        # 1. Encontrar y ordenar los archivos .txt
         txt_files = [f for f in os.listdir(source_directory) if f.endswith(".txt")]
         txt_files.sort()
 
@@ -162,7 +157,6 @@ def compile_texts_to_pdf(source_directory, output_pdf_path):
 
             pdf.add_page()
 
-            # Título de la página
             pdf.set_font(font_family, "B", 14)
 
             title_to_write = txt_file
@@ -172,7 +166,6 @@ def compile_texts_to_pdf(source_directory, output_pdf_path):
 
             pdf.ln(5)
 
-            # Contenido del archivo
             pdf.set_font(font_family, size=10)
 
             text_content = ""
@@ -182,7 +175,6 @@ def compile_texts_to_pdf(source_directory, output_pdf_path):
 
                 text_to_write = text_content
                 if text_sanitized:
-                    # Si estamos en modo fallback, sanitizamos
                     text_to_write = text_content.encode("latin-1", "replace").decode(
                         "latin-1"
                     )

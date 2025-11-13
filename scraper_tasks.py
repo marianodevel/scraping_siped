@@ -6,10 +6,11 @@ import config
 from bs4 import BeautifulSoup
 
 
-def scrape_lista_expedientes(session):
+def raspar_lista_expedientes(session):
     """
     Recorre todas las páginas de la lista de expedientes y devuelve una
     lista completa de todos los expedientes encontrados.
+    (Original: scrape_lista_expedientes)
     """
     all_expedientes_list = []
     current_inicio = 0
@@ -22,7 +23,7 @@ def scrape_lista_expedientes(session):
             r_lista = session.get(config.LISTA_EXPEDIENTES_URL, params=params)
             r_lista.raise_for_status()
 
-            expedientes_en_pagina = parsers.parse_expediente_list_page(r_lista.text)
+            expedientes_en_pagina = parsers.parsear_lista_expedientes(r_lista.text)
             if not expedientes_en_pagina:
                 print("  > No se encontraron más expedientes.")
                 break
@@ -30,7 +31,7 @@ def scrape_lista_expedientes(session):
             all_expedientes_list.extend(expedientes_en_pagina)
             print(f"  > Se encontraron {len(expedientes_en_pagina)} expedientes.")
 
-            next_inicio = parsers.find_next_list_page_inicio(r_lista.text)
+            next_inicio = parsers.encontrar_siguiente_pagina_inicio(r_lista.text)
             if next_inicio is not None:
                 current_inicio = next_inicio
                 page_count += 1
@@ -45,9 +46,10 @@ def scrape_lista_expedientes(session):
     return all_expedientes_list
 
 
-def scrape_movimientos_de_expediente(session, expediente_dict):
+def raspar_movimientos_de_expediente(session, expediente_dict):
     """
     Obtiene todos los movimientos para UN solo expediente.
+    (Original: scrape_movimientos_de_expediente)
     """
     link_contenedor = expediente_dict.get("link_detalle")
     expediente_nro = expediente_dict.get("expediente")
@@ -75,7 +77,7 @@ def scrape_movimientos_de_expediente(session, expediente_dict):
     html_detalle = r_detalle_real.text
 
     # 4. Extraer los parámetros para la llamada AJAX
-    ajax_params_base = parsers.parse_detail_page_for_ajax_params(html_detalle)
+    ajax_params_base = parsers.parsear_detalle_para_ajax_params(html_detalle)
     if "exp_id" not in ajax_params_base:
         print(
             f"  > ERROR: No se pudieron extraer los params de AJAX para {expediente_nro}."
@@ -110,7 +112,7 @@ def scrape_movimientos_de_expediente(session, expediente_dict):
         if len(movimientos_html) < 200:
             break
 
-        movimientos_de_pagina = parsers.parse_movimientos_from_ajax_html(
+        movimientos_de_pagina = parsers.parsear_movimientos_de_ajax_html(
             movimientos_html, expediente_nro
         )
 
@@ -125,23 +127,20 @@ def scrape_movimientos_de_expediente(session, expediente_dict):
     return movimientos_del_expediente
 
 
-def scrape_document_content(session, document_url):
+def raspar_contenido_documento(session, document_url):
     """
-    Visita la URL de un escrito (documento/movimiento) y
-    extrae todos sus datos estructurados usando el parser.
-    Devuelve un diccionario.
+    Visita la URL de un escrito y extrae su texto principal.
+    (Original: scrape_document_content)
     """
     if not document_url or not document_url.strip():
         print("   > ADVERTENCIA: No se proporcionó URL para el documento.")
         return None
 
     try:
-        # La URL ya viene absoluta desde el parser de movimientos
         r_documento = session.get(document_url)
         r_documento.raise_for_status()
 
-        # Usar el nuevo parser de página de documento
-        document_data = parsers.parse_document_page(r_documento.text)
+        document_data = parsers.parsear_pagina_documento(r_documento.text)
         return document_data
 
     except Exception as e:

@@ -10,7 +10,7 @@ class SessionManager:
         print("Iniciando Session Manager...")
         if not config.USUARIO or not config.CLAVE:
             raise ValueError(
-                "Las variables USUARIO_INTRANET y CLAVE_INTRANET no están en .env"
+                "Las variables USUARIO_INTRANET y CLAVE_INTRANET no están cargadas."
             )
 
         self.session = requests.Session()
@@ -27,7 +27,7 @@ class SessionManager:
             r_login.raise_for_status()
 
             # FASE 2: SEGUIR META REFRESH a 'inicio.php'
-            url_inicio = parsers.get_meta_refresh_url(
+            url_inicio = parsers.obtener_url_meta_refresh(
                 r_login.text, f"{config.BASE_URL}/servicios"
             )
             if not url_inicio:
@@ -38,7 +38,7 @@ class SessionManager:
             r_menu.raise_for_status()
 
             # FASE 3: ENCONTRAR Y SEGUIR ENLACE 'siped?token='
-            url_token = parsers.get_siped_token_link(r_menu.text)
+            url_token = parsers.obtener_enlace_token_siped(r_menu.text)
             if not url_token:
                 raise Exception(
                     "Error de Flujo: No se pudo encontrar el enlace token en el menú."
@@ -49,7 +49,7 @@ class SessionManager:
             r_token_page.raise_for_status()
 
             # FASE 4: SEGUIR META REFRESH FINAL a 'frame_principal'
-            url_dashboard = parsers.get_meta_refresh_url(
+            url_dashboard = parsers.obtener_url_meta_refresh(
                 r_token_page.text, f"{config.BASE_URL}/siped"
             )
             if not url_dashboard or "frame_principal.php" not in url_dashboard:

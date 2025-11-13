@@ -6,160 +6,181 @@ from flask import (
     flash,
     jsonify,
     send_from_directory,
+    request,
 )
 import os
 import config
-
-# Importamos las *tareas* de Celery
-from tasks import phase_1_list_task, phase_2_movements_task, phase_3_documents_task
-from celery.result import AsyncResult  # Importación necesaria para consultar el estado
+from tasks import fase_1_lista_task, fase_2_movimientos_task, fase_3_documentos_task
+import gestor_tareas
+import gestor_almacenamiento
+from celery.result import AsyncResult  # Se mantiene la importación para AsyncResult
 
 # --- Configuración de Flask ---
 app = Flask(__name__)
-# Usamos una clave secreta para la seguridad de los mensajes flash
 app.secret_key = os.environ.get(
     "FLASK_SECRET_KEY", "desarrollo-secreto-cambiar-en-prod"
 )
 
 # Almacenaremos el ID de la última tarea encolada para cada fase.
-LAST_TASK_IDS = {"phase_1": None, "phase_2": None, "phase_3": None}
+ULTIMOS_IDS_TAREAS = {"fase_1": None, "fase_2": None, "fase_3": None}
 
 # --- Funciones Auxiliares ---
 
 
-def get_task_status(task_id, phase_name):
+def obtener_estado_tarea(id_tarea, nombre_fase):
     """
     Consulta el estado de una tarea Celery y limpia el ID si la tarea ha finalizado.
     """
-    global LAST_TASK_IDS
+    global ULTIMOS_IDS_TAREAS
 
-    if not task_id:
-        # Tarea IDLE: nunca iniciada o reseteada.
-        return {"state": "SUCCESS", "result": "IDLE"}
+    if not id_tarea:
+        return {"estado": "SUCCESS", "resultado": "IDLE"}
 
-    # Usamos AsyncResult para consultar el estado del ID
-    task = AsyncResult(task_id, app=phase_1_list_task.app)
+    tarea = AsyncResult(id_tarea, app=fase_1_lista_task.app)
 
-    status_data = {"state": task.state, "result": task.result}
+    datos_estado = {"estado": tarea.state, "resultado": str(tarea.result)}
 
     # LÓGICA DE LIMPIEZA: Si el estado es final, limpiamos el ID global
-    if task.state in ["SUCCESS", "FAILURE", "REVOKED"]:
-        # Limpiamos el ID global de esta fase
-        LAST_TASK_IDS[phase_name] = None
+    if tarea.state in ["SUCCESS", "FAILURE", "REVOKED"]:
+        ULTIMOS_IDS_TAREAS[nombre_fase] = None
+        datos_estado["recargar"] = True  # Indicador de recarga para el frontend
+        return datos_estado
 
-        # Devolvemos el estado final de la tarea
-        return status_data
-
-    return status_data
+    return datos_estado
 
 
 # --- Rutas de la Aplicación (Endpoints) ---
 
 
+@app.route("/fragmento/mensajes")
+def fragmento_mensajes():
+    """Devuelve el fragmento HTML de los mensajes flash."""
+    return render_template("_fragmento_mensajes.html")
+
+
 @app.route("/")
-def index():
+def indice():
     """
-    Ruta principal. Muestra la página de inicio con la lista de PDFs generados.
+    Ruta principal. Muestra la página de inicio.
     """
-    pdf_list = []
-    output_dir = config.DOCUMENTOS_OUTPUT_DIR
+    lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
 
-    if os.path.exists(output_dir):
-        for item in os.listdir(output_dir):
-            if item.endswith(".pdf"):
-                pdf_list.append(item)
-
-    # Obtener el estado actual de las tareas para la interfaz
-    task_statuses = {
-        "phase_1": get_task_status(LAST_TASK_IDS["phase_1"], "phase_1"),
-        "phase_2": get_task_status(LAST_TASK_IDS["phase_2"], "phase_2"),
-        "phase_3": get_task_status(LAST_TASK_IDS["phase_3"], "phase_3"),
+    estados_tareas = {
+        "fase_1": obtener_estado_tarea(ULTIMOS_IDS_TAREAS["fase_1"], "fase_1"),
+        "fase_2": obtener_estado_tarea(ULTIMOS_IDS_TAREAS["fase_2"], "fase_2"),
+        "fase_3": obtener_estado_tarea(ULTIMOS_IDS_TAREAS["fase_3"], "fase_3"),
     }
 
     return render_template(
-        "index.html", pdf_files=sorted(pdf_list), task_statuses=task_statuses
+        "index.html",
+        archivos_pdf=lista_pdf,
+        estados_tareas=estados_tareas,
+        credenciales_establecidas=True,
     )
 
 
-@app.route("/start/<phase>", methods=["POST"])
-def start_phase(phase):
+@app.route("/iniciar/<nombre_fase>", methods=["POST"])
+def iniciar_fase(nombre_fase):
     """
     Ruta genérica para iniciar cualquier fase.
+    NOTA: Eliminamos el redirect y devolvemos el fragmento de mensaje.
     """
-    global LAST_TASK_IDS
+    global ULTIMOS_IDS_TAREAS
 
-    task_map = {
-        "phase_1": phase_1_list_task,
-        "phase_2": phase_2_movements_task,
-        "phase_3": phase_3_documents_task,
+    mapa_tareas = {
+        "fase_1": fase_1_lista_task,
+        "fase_2": fase_2_movimientos_task,
+        "fase_3": fase_3_documentos_task,
     }
 
-    if phase not in task_map:
-        flash(f"Fase '{phase}' no reconocida.", "error")
-        return redirect(url_for("index"))
+    if nombre_fase not in mapa_tareas:
+        flash(f"Fase '{nombre_fase}' no reconocida.", "error")
+        return render_template("_fragmento_mensajes.html"), 400
 
-    # Verificar si ya hay una tarea en curso
-    current_status = get_task_status(LAST_TASK_IDS.get(phase), phase)
-    if current_status["state"] in ["PENDING", "STARTED", "RETRY"]:
+    estado_actual = obtener_estado_tarea(
+        ULTIMOS_IDS_TAREAS.get(nombre_fase), nombre_fase
+    )
+    if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
         flash(
-            f"La Fase {phase.split('_')[1]} ya está en curso (Estado: {current_status['state']}).",
+            f"La Fase {nombre_fase.split('_')[1]} ya está en curso (Estado: {estado_actual['estado']}).",
             "warning",
         )
-        return redirect(url_for("index"))
+        return render_template("_fragmento_mensajes.html"), 200
 
     # Encolar la tarea
-    task = task_map[phase].delay()
-    LAST_TASK_IDS[phase] = task.id
+    tarea = mapa_tareas[nombre_fase].delay()
+    ULTIMOS_IDS_TAREAS[nombre_fase] = tarea.id
 
-    flash(f"Fase {phase.split('_')[1]} iniciada con ID: {task.id}", "success")
+    flash(f"Fase {nombre_fase.split('_')[1]} iniciada con ID: {tarea.id}", "success")
 
-    return redirect(url_for("index"))
+    # IMPORTANTE: Devolvemos el fragmento y un código 200. No hay redirección.
+    return render_template("_fragmento_mensajes.html"), 200
 
 
-@app.route("/reset-task-status/<phase>")
-def reset_task(phase):
+@app.route("/resetear_estado/<nombre_fase>")
+def resetear_estado(nombre_fase):
     """
     Ruta de utilidad para resetear manualmente el ID de la última tarea.
+    NOTA: Eliminamos el redirect y devolvemos el fragmento de mensaje.
     """
-    global LAST_TASK_IDS
-    if phase in LAST_TASK_IDS:
-        LAST_TASK_IDS[phase] = None
-        flash(f"Estado de {phase} reseteado manualmente.", "info")
+    if nombre_fase in gestor_tareas.ULTIMOS_IDS_TAREAS:
+        gestor_tareas.resetear_id_tarea(nombre_fase)
+        flash(f"Estado de {nombre_fase} reseteado manualmente.", "info")
     else:
         flash("Fase no válida para resetear.", "error")
 
-    return redirect(url_for("index"))
+    # Devolvemos el fragmento para la actualización asíncrona
+    return render_template("_fragmento_mensajes.html"), 200
 
 
-@app.route("/task-status/<phase>")
-def check_task_status(phase):
+@app.route("/fragmento/estado/<nombre_fase>")
+def fragmento_estado(nombre_fase):
     """
-    Endpoint para que el frontend pueda consultar el estado de una tarea.
+    Devuelve el fragmento HTML del estado y resultado de una fase específica.
     """
-    status = get_task_status(LAST_TASK_IDS.get(phase), phase)
-    # Si la tarea está finalizada (SUCCESS/FAILURE), recargamos la página para
-    # actualizar la lista de PDFs y el estado del botón.
-    if status["state"] in ["SUCCESS", "FAILURE", "REVOKED"]:
-        # También devolvemos la URL de recarga para que JavaScript lo maneje
-        status["refresh"] = True
+    estado = gestor_tareas.obtener_estado_tarea(
+        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
+    )
 
-    return jsonify(status)
+    return render_template("_fragmento_estado.html", id_fase=nombre_fase, estado=estado)
 
 
-# --- NUEVA RUTA PARA DESCARGA DE ARCHIVOS ---
-@app.route("/download/<filename>")
-def download_file(filename):
+@app.route("/fragmento/pdfs")
+def fragmento_pdfs():
+    """
+    Devuelve el fragmento HTML de la lista de PDFs.
+    """
+    lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
+
+    return render_template("_fragmento_pdfs.html", archivos_pdf=lista_pdf)
+
+
+@app.route("/estado_tarea/<nombre_fase>")
+def verificar_estado_tarea(nombre_fase):
+    """
+    Endpoint para que el frontend pueda consultar el estado de una tarea (JSON).
+    """
+    estado = gestor_tareas.obtener_estado_tarea(
+        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
+    )
+    return jsonify(
+        {
+            "state": estado["estado"],
+            "result": estado["resultado"],
+            "refresh": estado.get("recargar", False),
+        }
+    )
+
+
+@app.route("/descargar/<nombre_archivo>")
+def descargar_archivo(nombre_archivo):
     """
     Ruta para servir archivos PDF de forma segura.
     """
     return send_from_directory(
-        directory=config.DOCUMENTOS_OUTPUT_DIR,
-        path=filename,
-        as_attachment=True,  # Fuerza la descarga en lugar de mostrarlo en el navegador
+        directory=config.DOCUMENTOS_OUTPUT_DIR, path=nombre_archivo, as_attachment=True
     )
 
-
-# --- FIN NUEVA RUTA ---
 
 # --- Bloque de Ejecución ---
 

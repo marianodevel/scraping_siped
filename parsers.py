@@ -5,8 +5,11 @@ from urllib.parse import urljoin
 import config
 
 
-def get_meta_refresh_url(html_text, base_path):
-    """Extrae la URL de una etiqueta meta refresh."""
+def obtener_url_meta_refresh(html_text, base_path):
+    """
+    Extrae la URL de una etiqueta meta refresh.
+    (Original: get_meta_refresh_url)
+    """
     soup = BeautifulSoup(html_text, "html.parser")
     meta_tag = soup.find(
         "meta", attrs={"http-equiv": re.compile(r"refresh", re.IGNORECASE)}
@@ -24,8 +27,11 @@ def get_meta_refresh_url(html_text, base_path):
     return None
 
 
-def get_siped_token_link(html_text):
-    """Extrae el enlace <a> que contiene el token de SIPED."""
+def obtener_enlace_token_siped(html_text):
+    """
+    Extrae el enlace <a> que contiene el token de SIPED.
+    (Original: get_siped_token_link)
+    """
     soup = BeautifulSoup(html_text, "html.parser")
     siped_link = soup.find("a", href=re.compile(r"/siped\?token="))
     if siped_link:
@@ -38,8 +44,11 @@ def get_siped_token_link(html_text):
     return None
 
 
-def parse_expediente_list_page(html_text):
-    """Parsea la tabla de expedientes y devuelve una lista de dicts."""
+def parsear_lista_expedientes(html_text):
+    """
+    Parsea la tabla de expedientes y devuelve una lista de dicts.
+    (Original: parse_expediente_list_page)
+    """
     soup = BeautifulSoup(html_text, "html.parser")
     table = soup.find("table", class_="table-striped")
     if not table:
@@ -71,8 +80,11 @@ def parse_expediente_list_page(html_text):
     return expedientes_en_pagina
 
 
-def find_next_list_page_inicio(html_text):
-    """Encuentra el valor 'inicio' del botón SIGUIENTE."""
+def encontrar_siguiente_pagina_inicio(html_text):
+    """
+    Encuentra el valor 'inicio' del botón SIGUIENTE.
+    (Original: find_next_list_page_inicio)
+    """
     soup = BeautifulSoup(html_text, "html.parser")
 
     def is_real_next_button(tag):
@@ -94,8 +106,11 @@ def find_next_list_page_inicio(html_text):
     return None
 
 
-def parse_detail_page_for_ajax_params(html_detalle):
-    """Extrae los parámetros dinámicos para la llamada AJAX 'vermas'."""
+def parsear_detalle_para_ajax_params(html_detalle):
+    """
+    Extrae los parámetros dinámicos para la llamada AJAX 'vermas'.
+    (Original: parse_detail_page_for_ajax_params)
+    """
     params = {}
     soup = BeautifulSoup(html_detalle, "html.parser")
 
@@ -127,8 +142,11 @@ def parse_detail_page_for_ajax_params(html_detalle):
     return params
 
 
-def parse_movimientos_from_ajax_html(html_movimientos, nro_expediente):
-    """Parsea la tabla de movimientos devuelta por AJAX."""
+def parsear_movimientos_de_ajax_html(html_movimientos, nro_expediente):
+    """
+    Parsea la tabla de movimientos devuelta por AJAX.
+    (Original: parse_movimientos_from_ajax_html)
+    """
     soup = BeautifulSoup(html_movimientos, "html.parser")
     table = soup.find("table", class_="table-hover")
     if not table:
@@ -162,11 +180,10 @@ def parse_movimientos_from_ajax_html(html_movimientos, nro_expediente):
     return movimientos_list
 
 
-# --- ¡FUNCIÓN MODIFICADA! ---
-def parse_document_page(html_text):
+def parsear_pagina_documento(html_text):
     """
     Extrae todos los datos estructurados de la página de un escrito.
-    Devuelve un diccionario.
+    (Original: parse_document_page)
     """
     soup = BeautifulSoup(html_text, "html.parser")
     data = {"firmantes": []}
@@ -213,9 +230,6 @@ def parse_document_page(html_text):
 
         if table_documento:
             rows = table_documento.find_all("tr")
-            # El índice 0 es <tr><td></td></tr>
-            # El índice 1 es <tr><td ...><strong> Origen: ...</strong></td></tr>
-            # El índice 2 es <tr><td ...> Nombre: ...</td><td ...><strong> Cod. Val.: ...</strong></td>...</tr>
             if len(rows) > 2:  # Necesitamos la fila en el índice 2
                 cols = rows[2].find_all("td")  # Obtener celdas de la TERCERA fila
                 if len(cols) > 0:
@@ -233,7 +247,6 @@ def parse_document_page(html_text):
                             .replace("Código de Validación:", "")
                             .strip()
                         )
-        # --- FIN DE LA CORRECCIÓN DE PARSEO ---
 
         # --- 3. Extraer Texto de la Providencia (div#editor-container) ---
         editor = soup.find(id="editor-container")
