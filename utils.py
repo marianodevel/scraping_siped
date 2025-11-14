@@ -3,8 +3,11 @@ import csv
 import os
 import re
 from fpdf import FPDF
-import functools  # Importación para el decorador
-from session_manager import SessionManager  # Importación para el decorador
+import functools  # <<< AÑADIR
+import session_manager  # <<< AÑADIR
+
+# ... (todas tus funciones existentes: limpiar_nombre_archivo, guardar_a_csv, etc.) ...
+# ... (asegúrate de que todo el código anterior esté aquí) ...
 
 
 def limpiar_nombre_archivo(name):
@@ -206,32 +209,25 @@ def compilar_textos_a_pdf(source_directory, output_pdf_path):
         traceback.print_exc()
 
 
-# --- Decorador de Fase Añadido ---
+# --- V V V DECORADOR DE FASE AÑADIDO V V V ---
 
 
 def manejar_fase_con_sesion(nombre_fase):
     """
     Decorador para gestionar el boilerplate de una fase de scraping.
-
-    Se encarga de:
-    - Imprimir el inicio de la fase.
-    - Crear y proveer la 'session' de scraping.
-    - Capturar errores fatales (try...except).
-    - Imprimir el mensaje final (éxito o error).
-    - Relanzar la excepción para que Celery la marque como FAILURE.
+    Ahora crea la sesión a partir de las cookies.
     """
 
     def decorador(funcion_nucleo):
+        # El wrapper ahora espera 'cookies' como primer argumento posicional
         @functools.wraps(funcion_nucleo)
-        def wrapper(*args, **kwargs):
+        def wrapper(cookies, *args, **kwargs):
             print(f"--- INICIANDO {nombre_fase} ---")
             try:
-                # 1. Configuración de la Sesión
-                manager = SessionManager()
-                session = manager.get_session()
+                # 1. Crear la Sesión a partir de las cookies
+                session = session_manager.crear_sesion_con_cookies(cookies)
 
                 # 2. Ejecutar la lógica específica de la fase
-                #    (le pasamos la sesión)
                 mensaje = funcion_nucleo(session, *args, **kwargs)
 
                 # 3. Éxito
@@ -242,8 +238,6 @@ def manejar_fase_con_sesion(nombre_fase):
                 # 4. Manejo de Error Fatal
                 mensaje = f"Error fatal en {nombre_fase}: {e}"
                 print(mensaje)
-                # Relanzamos la excepción para que Celery
-                # marque la tarea como 'FAILURE'
                 raise Exception(mensaje)
 
         return wrapper

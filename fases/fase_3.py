@@ -4,17 +4,19 @@ import time
 import scraper_tasks
 import utils
 import config
-from utils import manejar_fase_con_sesion  # <<< CAMBIO: Importar el decorador
+from utils import manejar_fase_con_sesion  # <<< CAMBIO
 
-# <<< CAMBIO: 'SessionManager' ya no es necesario aquí
+# <<< 'SessionManager' ya no se importa >>>
 
 
 @manejar_fase_con_sesion("FASE 3: OBTENER DOCUMENTOS Y COMPILAR PDF")
-def ejecutar_fase_3_documentos(session):
+def ejecutar_fase_3_documentos(session):  # <<< CAMBIO: recibe 'session'
     """
     FASE 3: Descarga el texto y compila el PDF para cada movimiento.
     La 'session' es inyectada por el decorador.
     """
+    # <<< CAMBIO: El try/except/SessionManager exterior ha desaparecido >>>
+
     expedientes_a_procesar = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
     if not expedientes_a_procesar:
         mensaje = "Error: No se encontró el archivo maestro. Ejecute Fase 1 primero."
@@ -24,7 +26,6 @@ def ejecutar_fase_3_documentos(session):
     total_expedientes = len(expedientes_a_procesar)
     print(f"Se encontraron {total_expedientes} expedientes para procesar.")
 
-    # <<< CAMBIO: El 'try...except' fatal y el 'SessionManager' han desaparecido.
     print("Sesión iniciada para el bucle de documentos.")
 
     for i, expediente in enumerate(expedientes_a_procesar):
@@ -81,8 +82,8 @@ def ejecutar_fase_3_documentos(session):
                     f"    > Doc {id_correlativo}: Descargando '{movimiento.get('nombre_escrito', 'doc')}'..."
                 )
 
-                # Este try/except es BUENO. Permite que el bucle
-                # continúe si un *documento* individual falla.
+                # Este try/except es parte de la lógica (ignora un
+                # documento fallido) y DEBE MANTENERSE.
                 try:
                     datos_documento = scraper_tasks.raspar_contenido_documento(
                         session, url_doc
@@ -105,7 +106,7 @@ def ejecutar_fase_3_documentos(session):
                     print(
                         f"    > !!! ERROR (Documento {id_correlativo}) en {nro_expediente}: {e}"
                     )
-                    pass
+                    pass  # Continuar con el siguiente documento
 
         print(f"  > Descarga de documentos finalizada para {nro_expediente}.")
 
@@ -120,4 +121,4 @@ def ejecutar_fase_3_documentos(session):
                 utils.compilar_textos_a_pdf(ruta_carpeta_expediente, ruta_pdf)
 
     mensaje = f"Proceso de documentos y PDF completado. Total de expedientes: {total_expedientes}."
-    return mensaje  # <<< CAMBIO: Solo devolvemos el mensaje final
+    return mensaje  # <<< CAMBIO: Solo devuelve el mensaje

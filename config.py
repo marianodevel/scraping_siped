@@ -1,13 +1,14 @@
-# marianodevel/scraping_siped/marianodevel-scraping_siped-c1d54d11d3b59f2e8f0a682b7ed49cc9c0bba71f/config.py
+# config.py
 import os
 from dotenv import load_dotenv
 
 # Cargar variables de entorno desde .env
 load_dotenv()
 
-# --- Credenciales ---
-USUARIO = os.getenv("USUARIO_INTRANET")
-CLAVE = os.getenv("CLAVE_INTRANET")
+# --- Credenciales ELIMINADAS ---
+# Las credenciales ya no se leen de aquí.
+# USUARIO = os.getenv("USUARIO_INTRANET")
+# CLAVE = os.getenv("CLAVE_INTRANET")
 
 # --- Constantes del Sitio ---
 BASE_URL = "https://intranet.jussantacruz.gob.ar"

@@ -3,28 +3,28 @@ import os
 import scraper_tasks
 import utils
 import config
-from utils import manejar_fase_con_sesion  # <<< CAMBIO: Importar el decorador
+from utils import manejar_fase_con_sesion  # <<< CAMBIO
 
-# <<< CAMBIO: 'SessionManager' ya no es necesario aquí
+# <<< 'SessionManager' ya no se importa >>>
 
 
 @manejar_fase_con_sesion("FASE 2: OBTENER MOVIMIENTOS")
-def ejecutar_fase_2_movimientos(session):
+def ejecutar_fase_2_movimientos(session):  # <<< CAMBIO: recibe 'session'
     """
     FASE 2: Descarga los movimientos para CADA expediente de la lista maestra
     y los guarda en archivos CSV individuales.
     La 'session' es inyectada por el decorador.
     """
+    # <<< CAMBIO: El try/except/SessionManager exterior ha desaparecido >>>
+
     expedientes_a_procesar = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
     if not expedientes_a_procesar:
         mensaje = f"Error: No se encontró el archivo maestro '{config.LISTA_EXPEDIENTES_CSV}'. Ejecute Fase 1 primero."
-        print(mensaje)  # Dejamos los prints internos
+        print(mensaje)  # Mantenemos prints internos
         return mensaje
 
     total_expedientes = len(expedientes_a_procesar)
     print(f"Se encontraron {total_expedientes} expedientes para procesar.")
-
-    # <<< CAMBIO: El 'try...except' fatal y el 'SessionManager' han desaparecido.
 
     contador_movimientos = 0
 
@@ -43,8 +43,8 @@ def ejecutar_fase_2_movimientos(session):
             print(f"  > Ya existe '{nombre_archivo}', saltando.")
             continue
 
-        # Este try/except es BUENO. Es específico de esta lógica
-        # y permite que el bucle continúe si un expediente falla.
+        # Este try/except es parte de la lógica (ignora un expediente
+        # fallido) y DEBE MANTENERSE.
         try:
             movimientos = scraper_tasks.raspar_movimientos_de_expediente(
                 session, expediente
@@ -66,4 +66,4 @@ def ejecutar_fase_2_movimientos(session):
             pass  # Continuar con el siguiente expediente
 
     mensaje = f"Proceso de movimientos completado. Total de movimientos descargados (nuevos): {contador_movimientos}"
-    return mensaje  # <<< CAMBIO: Solo devolvemos el mensaje final
+    return mensaje  # <<< CAMBIO: Solo devuelve el mensaje
