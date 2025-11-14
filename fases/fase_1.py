@@ -1,33 +1,26 @@
 # fases/fase_1.py
-import os
 import scraper_tasks
 import utils
 import config
-from session_manager import SessionManager
+from utils import manejar_fase_con_sesion  # <<< CAMBIO: Importar el decorador
+
+# <<< CAMBIO: 'os' y 'SessionManager' ya no son necesarios aquí
 
 
-def ejecutar_fase_1_lista():
+@manejar_fase_con_sesion("FASE 1: OBTENER LISTA DE EXPEDIENTES")
+def ejecutar_fase_1_lista(session):
     """
     FASE 1: Obtiene la lista maestra de expedientes y la guarda en un CSV.
+    La 'session' es inyectada por el decorador 'manejar_fase_con_sesion'.
     """
-    print("--- INICIANDO FASE 1: OBTENER LISTA DE EXPEDIENTES ---")
-    try:
-        manager = SessionManager()
-        session = manager.get_session()
+    # <<< CAMBIO: Todo el 'try...except' y 'SessionManager' ha desaparecido.
 
-        lista_expedientes = scraper_tasks.raspar_lista_expedientes(session)
+    lista_expedientes = scraper_tasks.raspar_lista_expedientes(session)
 
-        if lista_expedientes:
-            utils.guardar_a_csv(lista_expedientes, config.LISTA_EXPEDIENTES_CSV)
-            mensaje = f"Lista de expedientes guardada en '{config.LISTA_EXPEDIENTES_CSV}'. Total: {len(lista_expedientes)}"
-            print(mensaje)
-            return mensaje
-        else:
-            mensaje = "No se encontraron expedientes."
-            print(mensaje)
-            return mensaje
-
-    except Exception as e:
-        mensaje = f"Error fatal en la Fase 1: {e}"
-        print(mensaje)
-        raise Exception(mensaje)
+    if lista_expedientes:
+        utils.guardar_a_csv(lista_expedientes, config.LISTA_EXPEDIENTES_CSV)
+        mensaje = f"Lista de expedientes guardada en '{config.LISTA_EXPEDIENTES_CSV}'. Total: {len(lista_expedientes)}"
+        return mensaje  # <<< CAMBIO: Solo devolvemos el mensaje
+    else:
+        mensaje = "No se encontraron expedientes."
+        return mensaje  # <<< CAMBIO: Solo devolvemos el mensaje
