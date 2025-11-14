@@ -47,9 +47,30 @@
         .flash.warning { background-color: #664d00; }
         .flash.info { background-color: #004a66; }
         .fase-info { margin-top: 10px; font-size: 0.85em; } 
+
+        /* <<<--- AÑADIDO ESTE BLOQUE DE ESTILO ---<<< */
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body hx-headers='{"Cache-Control": "no-cache"}'>
+
+    <header class="user-header">
+        <div>
+            <strong>Usuario:</strong> {{ username | default('N/A') }}
+        </div>
+        <a href="{{ url_for('logout') }}" role="button" class="outline">
+            Cerrar Sesión
+        </a>
+    </header>
+
+
     <h1>Scraper de Expedientes</h1>
     <p>La aplicación utiliza Celery (Worker) para ejecutar las fases en segundo plano.</p>
 
