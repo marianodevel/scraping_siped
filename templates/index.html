@@ -134,31 +134,67 @@
         </div>
 
     <script>
-        // Disparamos un evento global si una tarea ha finalizado para forzar la actualización de PDFs y estados.
-        document.body.addEventListener('htmx:afterSwap', function(evt) {
+        // Objeto global para rastrear el estado final de las tareas
+        const fasesFinalizadas = {};
+
+        // 1. ANTES del swap: Prevenimos la reversión visual
+        document.body.addEventListener('htmx:beforeSwap', function(evt) {
+            // Solo nos importa el swap de los contenedores de estado
+            if (!evt.target.id || !evt.target.id.startsWith('estado-resultado-')) {
+                return;
+            }
             
-            // 1. Si se actualizó un contenedor de estado:
-            if (evt.target.id && evt.target.id.startsWith('estado-resultado-')) {
-                const badge = evt.target.querySelector('.status-badge');
-                if (!badge) return;
+            const faseId = evt.target.id.replace('estado-resultado-', '');
 
-                const status = badge.textContent.trim();
+            // Si esta fase YA está marcada como finalizada, CANCELAMOS el nuevo swap.
+            // Esto bloquea la "Petición C" (la de la race condition).
+            if (fasesFinalizadas[faseId]) {
                 
-                // Si el estado es FINAL (SUCCESS o FAILURE, pero no IDLE)
-                if (['SUCCESS', 'FAILURE', 'REVOKED'].includes(status) && status !== 'IDLE') {
-                    // Disparamos el evento global
-                    document.body.dispatchEvent(new Event('tareaFinalizada'));
+                // ¡La clave! Evita que el DOM se actualice con "..."
+                evt.preventDefault(); 
+                
+                // Y nos aseguramos de que el polling esté muerto
+                evt.target.removeAttribute('hx-trigger');
+            }
+        });
 
-                    // Forzamos el desbloqueo del botón
-                    const faseId = evt.target.id.replace('estado-resultado-', '');
-                    const button = document.querySelector(`button[data-fase="${faseId}"]`);
-                    if (button) {
-                        button.disabled = false;
-                        button.textContent = `Iniciar Fase ${faseId.split('_')[1]}`;
-                    }
+        // 2. DESPUÉS del swap: Reaccionamos a la finalización (la primera vez)
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            // Solo nos importa el swap de los contenedores de estado
+            if (!evt.target.id || !evt.target.id.startsWith('estado-resultado-')) {
+                return;
+            }
+            
+            const faseId = evt.target.id.replace('estado-resultado-', '');
+            
+            // Si ya la procesamos en un ciclo anterior, no hacer nada
+            if (fasesFinalizadas[faseId]) {
+                return;
+            }
+
+            const badge = evt.target.querySelector('.status-badge');
+            if (!badge) return;
+            const status = badge.textContent.trim();
+
+            // Si es un estado final...
+            if (['SUCCESS', 'FAILURE', 'REVOKED'].includes(status)) {
+                
+                // 1. Matar el polling
+                evt.target.removeAttribute('hx-trigger');
+                
+                // 2. Marcarla como finalizada (para el listener 'beforeSwap')
+                fasesFinalizadas[faseId] = true;
+                
+                // 3. Disparar evento para PDFs
+                document.body.dispatchEvent(new Event('tareaFinalizada'));
+
+                // 4. Habilitar el botón
+                const button = document.querySelector(`button[data-fase="${faseId}"]`);
+                if (button) {
+                    button.disabled = false;
                 }
             }
         });
     </script>
-</body>
+    </body>
 </html>
