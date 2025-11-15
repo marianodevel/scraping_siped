@@ -9,3 +9,9 @@ fpdf2
 Flask-Login
 Flask-WTF
 wtforms[email]
+pytest
+pytest-flask
+pytest-mock
+pyfakefs
+selenium
+pytest-selenium
