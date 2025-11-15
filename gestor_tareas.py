@@ -13,7 +13,11 @@ def obtener_estado_tarea(id_tarea, nombre_fase):
     global ULTIMOS_IDS_TAREAS
 
     if not id_tarea:
-        return {"estado": "SUCCESS", "resultado": "IDLE"}
+        # --- INICIO DE LA CORRECCIÓN ---
+        # El estado inicial debe ser IDLE (o un sinónimo),
+        # y el resultado debe ser descriptivo.
+        return {"estado": "IDLE", "resultado": "En espera"}
+        # --- FIN DE LA CORRECCIÓN ---
 
     # Se consulta el estado usando la aplicación Celery registrada en tasks.py
     tarea = AsyncResult(id_tarea, app=fase_1_lista_task.app)
@@ -31,7 +35,26 @@ def obtener_estado_tarea(id_tarea, nombre_fase):
 
         ULTIMOS_IDS_TAREAS[nombre_fase] = None
         datos_estado["recargar"] = True  # Indicador de recarga para el frontend
+
+        # Si la tarea fue exitosa pero no devolvió resultado, mostramos "Completado"
+        if tarea.state == "SUCCESS" and (
+            not datos_estado["resultado"] or datos_estado["resultado"] == "None"
+        ):
+            datos_estado["resultado"] = "Completado"
+
         return datos_estado
+
+    # Si la tarea está PENDING (encolada pero no iniciada), mostramos "En cola"
+    if tarea.state == "PENDING" and (
+        not datos_estado["resultado"] or datos_estado["resultado"] == "None"
+    ):
+        datos_estado["resultado"] = "En cola..."
+
+    # Si la tarea está STARTED (corriendo), mostramos "Procesando"
+    if tarea.state == "STARTED" and (
+        not datos_estado["resultado"] or datos_estado["resultado"] == "None"
+    ):
+        datos_estado["resultado"] = "Procesando..."
 
     return datos_estado
 

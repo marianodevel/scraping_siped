@@ -24,14 +24,13 @@ def test_flujo_login_y_arrancar_fase(selenium, live_server, mocker):
     )  #
     mocker.patch(
         "app.gestor_tareas.obtener_estado_tarea",
-        return_value={"estado": "SUCCESS", "resultado": "IDLE"},
+        return_value={"estado": "IDLE", "resultado": "En espera"},
     )  #
     mock_tarea = mocker.Mock(id="fake-celery-task-id-e2e")
     mock_delay = mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
     mocker.patch("app.gestor_tareas.registrar_tarea_iniciada")  #
 
     # --- 2. Ir a la página de Login ---
-    # *** CORRECCIÓN AQUÍ ***
     selenium.get(live_server.url() + "/login")  #
 
     # --- 3. Llenar el formulario y Enviar ---
@@ -43,7 +42,6 @@ def test_flujo_login_y_arrancar_fase(selenium, live_server, mocker):
 
     # --- 4. Verificar Redirección y Estado ---
 
-    # *** CORRECCIÓN AQUÍ ***
     # Esperamos a que la URL cambie al índice (ruta "/")
     WebDriverWait(selenium, timeout=5).until(EC.url_contains(live_server.url() + "/"))
 
@@ -57,9 +55,20 @@ def test_flujo_login_y_arrancar_fase(selenium, live_server, mocker):
             (By.XPATH, "//*[contains(text(), '¡Bienvenido, test_usuario!')]")
         )
     )
+
+    # --- INICIO DE LA CORRECCIÓN DEL TEST ---
+    # Buscamos el nuevo texto "En espera" y el badge "IDLE"
     wait.until(
-        EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'IDLE')]"))
+        EC.visibility_of_element_located(
+            (By.XPATH, "//*[contains(text(), 'En espera')]")
+        )
     )
+    wait.until(
+        EC.visibility_of_element_located(
+            (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'IDLE')]")
+        )
+    )
+    # --- FIN DE LA CORRECCIÓN DEL TEST ---
 
     # --- 5. Iniciar la Fase 1 ---
 
@@ -107,14 +116,13 @@ def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
     )  #
     mock_get_estado = mocker.patch(
         "app.gestor_tareas.obtener_estado_tarea",
-        return_value={"estado": "SUCCESS", "resultado": "IDLE"},
+        return_value={"estado": "IDLE", "resultado": "En espera"},
     )  #
     mock_tarea = mocker.Mock(id="task-123")
     mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
     mocker.patch("app.gestor_tareas.registrar_tarea_iniciada")  #
 
     # --- 1. Cargar la página y verificar estado IDLE ---
-    # *** CORRECCIÓN AQUÍ ***
     selenium.get(live_server.url() + "/login")  #
     selenium.find_element(By.ID, "username").send_keys("user")
     selenium.find_element(By.ID, "password").send_keys("pass")
@@ -134,16 +142,24 @@ def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
         By.XPATH, ".//button[contains(text(), 'Iniciar')]"
     )
 
-    # Verificar estado inicial IDLE
+    # --- INICIO DE LA CORRECCIÓN DEL TEST ---
+    # Verificar estado inicial IDLE y texto "En espera"
     wait.until(
         EC.visibility_of(
             fase_1_control.find_element(By.XPATH, ".//*[contains(text(), 'IDLE')]")
         )
     )
+    wait.until(
+        EC.visibility_of(
+            fase_1_control.find_element(By.XPATH, ".//*[contains(text(), 'En espera')]")
+        )
+    )
     assert iniciar_btn.is_enabled()
+    # --- FIN DE LA CORRECCIÓN DEL TEST ---
 
     # --- 2. Iniciar Tarea y verificar estado PENDING ---
-    mock_get_estado.return_value = {"estado": "PENDING", "resultado": "Corriendo..."}
+    # Actualizamos mock para que devuelva "En cola..." (más semántico)
+    mock_get_estado.return_value = {"estado": "PENDING", "resultado": "En cola..."}
     iniciar_btn.click()
 
     # Verificar que el badge cambia a PENDING (usando el ID corregido)
@@ -152,9 +168,14 @@ def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
             (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'PENDING')]")
         )
     )
+    # Verificar que el texto cambia a "En cola..."
+    wait.until(
+        EC.visibility_of_element_located(
+            (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'En cola...')]")
+        )
+    )
 
     # Verificar que el botón está deshabilitado
-    # (El botón se recarga vía fragmento, así que lo buscamos de nuevo)
     iniciar_btn_actualizado = selenium.find_element(
         By.ID, "estado-fase_1"
     ).find_element(By.XPATH, ".//button[contains(text(), 'Iniciar')]")
@@ -163,7 +184,7 @@ def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
     # --- 3. Simular fin de Tarea y verificar estado SUCCESS ---
     mock_get_estado.return_value = {
         "estado": "SUCCESS",
-        "resultado": "Completado con exito!",
+        "resultado": "Completado!",
     }
 
     # Esperar a que el polling detecte el estado SUCCESS (usando el ID corregido)
@@ -176,7 +197,7 @@ def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
     # Verificar que el resultado se muestra
     wait.until(
         EC.visibility_of_element_located(
-            (By.XPATH, "//*[contains(text(), 'Completado con exito!')]")
+            (By.XPATH, "//*[contains(text(), 'Completado!')]")
         )
     )
 
@@ -190,8 +211,6 @@ def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
 def test_race_condition_doble_clic(selenium, live_server, mocker):
     """
     Testea qué pasa si el usuario hace doble clic muy rápido en 'Iniciar'.
-    (Con Selenium, el "doble clic" es más difícil de simular que en
-    Playwright, pero podemos hacer dos clics seguidos).
     """
 
     # --- Mocks ---
@@ -200,56 +219,46 @@ def test_race_condition_doble_clic(selenium, live_server, mocker):
     )  #
     mocker.patch(
         "app.gestor_tareas.obtener_estado_tarea",
-        return_value={"estado": "SUCCESS", "resultado": "IDLE"},
+        return_value={"estado": "IDLE", "resultado": "En espera"},
     )  #
     mock_tarea = mocker.Mock(id="task-unico-id")
     mock_delay = mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
 
     # --- Cargar página ---
-    # *** CORRECCIÓN AQUÍ ***
     selenium.get(live_server.url() + "/login")  #
     selenium.find_element(By.ID, "username").send_keys("user")
     selenium.find_element(By.ID, "password").send_keys("pass")
     selenium.find_element(By.NAME, "submit").click()
 
     wait = WebDriverWait(selenium, timeout=5)
+
+    # --- INICIO DE LA CORRECCIÓN DEL TEST ---
+    # Buscamos el nuevo texto "En espera"
     wait.until(
-        EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'IDLE')]"))
+        EC.visibility_of_element_located(
+            (By.XPATH, "//*[contains(text(), 'En espera')]")
+        )
     )
+    # --- FIN DE LA CORRECCIÓN DEL TEST ---
 
     # --- Simular Clics Rápidos ---
     iniciar_btn = selenium.find_element(By.ID, "estado-fase_1").find_element(
         By.XPATH, ".//button[contains(text(), 'Iniciar')]"
     )
 
-    # Simular clics rápidos (no es un 'dblclick' real, pero fuerza dos POST)
     iniciar_btn.click()
-    # En Selenium, el segundo clic a menudo falla si el DOM cambia.
-    # El test de backend (test_app.py) es mejor para esto.
-    # Pero probamos que la lógica de backend lo ataja.
     try:
-        # Intentamos hacer clic de nuevo muy rápido
         selenium.find_element(By.ID, "estado-fase_1").find_element(
             By.XPATH, ".//button[contains(text(), 'Iniciar')]"
         ).click()
     except Exception:
-        # Es probable que falle porque el botón se deshabilitó,
-        # lo cual está bien.
         pass
 
     # --- Verificar ---
-    # La protección en app.py debe asegurar que solo se llamó una vez.
     mock_delay.assert_called_once()
 
-    # Deberíamos ver el mensaje de éxito de la primera llamada
     wait.until(
         EC.visibility_of_element_located(
             (By.XPATH, "//*[contains(text(), 'Fase 1 iniciada')]")
         )
     )
-
-
-# Los tests de regresión visual (snapshots) son más complejos en Selenium
-# y no vienen integrados. Requerirían una librería externa como 'pyscreenshot'.
-# Recomiendo mantener esos tests desactivados si cambias a Selenium
-# para mantener la simplicidad.

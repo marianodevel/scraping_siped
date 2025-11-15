@@ -1504,3 +1504,396 @@ FAILED tests/e2e/test_frontend.py::test_flujo_login_y_arrancar_fase - Asserti...
 FAILED tests/e2e/test_frontend.py::test_flujo_completo_de_estado_ui_polling
 FAILED tests/e2e/test_frontend.py::test_race_condition_doble_clic - selenium....
 ================== 3 failed, 21 passed, 2 warnings in 13.71s ===================
+============================= test session starts ==============================
+platform linux -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0 -- /home/mariano/scraping_siped/.venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.13.7', 'Platform': 'Linux-6.17.7-arch1-1-x86_64-with-glibc2.42', 'Packages': {'pytest': '8.4.2', 'pluggy': '1.6.0'}, 'Plugins': {'variables': '3.1.0', 'flask': '1.3.0', 'pyfakefs': '5.10.2', 'metadata': '3.1.1', 'html': '4.1.1', 'selenium': '4.1.0', 'base-url': '2.1.0', 'mock': '3.15.1'}, 'Base URL': '', 'Driver': 'Chrome', 'Capabilities': {}}
+driver: Chrome
+sensitiveurl: .*
+rootdir: /home/mariano/scraping_siped
+configfile: pytest.ini
+plugins: variables-3.1.0, flask-1.3.0, pyfakefs-5.10.2, metadata-3.1.1, html-4.1.1, selenium-4.1.0, base-url-2.1.0, mock-3.15.1
+collecting ... collected 25 items
+
+tests/e2e/test_app.py::test_login_get PASSED                             [  4%]
+tests/e2e/test_app.py::test_login_post_fallido PASSED                    [  8%]
+tests/e2e/test_app.py::test_login_post_exitoso_y_logout PASSED           [ 12%]
+tests/e2e/test_app.py::test_rutas_protegidas_sin_login PASSED            [ 16%]
+tests/e2e/test_app.py::test_iniciar_fase PASSED                          [ 20%]
+tests/e2e/test_frontend.py::test_flujo_login_y_arrancar_fase FAILED      [ 24%]
+tests/e2e/test_frontend.py::test_flujo_completo_de_estado_ui_polling FAILED [ 28%]
+tests/e2e/test_frontend.py::test_race_condition_doble_clic FAILED        [ 32%]
+tests/integration/test_fases.py::test_ejecutar_fase_1_exito PASSED       [ 36%]
+tests/integration/test_fases.py::test_ejecutar_fase_1_sin_expedientes PASSED [ 40%]
+tests/integration/test_fases.py::test_ejecutar_fase_2 PASSED             [ 44%]
+tests/integration/test_gestor_almacenamiento.py::test_listar_archivos_pdf PASSED [ 48%]
+tests/integration/test_gestor_tareas.py::test_obtener_estado_tarea_inicial_sin_id PASSED [ 52%]
+tests/integration/test_gestor_tareas.py::test_registrar_y_obtener_id PASSED [ 56%]
+tests/integration/test_gestor_tareas.py::test_resetear_id_tarea PASSED   [ 60%]
+tests/integration/test_gestor_tareas.py::test_obtener_estado_tarea_exitosa PASSED [ 64%]
+tests/integration/test_gestor_tareas.py::test_obtener_estado_tarea_pendiente PASSED [ 68%]
+tests/unit/test_parsers.py::test_obtener_url_meta_refresh PASSED         [ 72%]
+tests/unit/test_parsers.py::test_obtener_enlace_token_siped PASSED       [ 76%]
+tests/unit/test_parsers.py::test_parsear_lista_expedientes PASSED        [ 80%]
+tests/unit/test_parsers.py::test_encontrar_siguiente_pagina_inicio PASSED [ 84%]
+tests/unit/test_parsers.py::test_encontrar_siguiente_pagina_fin PASSED   [ 88%]
+tests/unit/test_parsers.py::test_parsear_detalle_para_ajax_params PASSED [ 92%]
+tests/unit/test_parsers.py::test_parsear_movimientos_de_ajax_html PASSED [ 96%]
+tests/unit/test_parsers.py::test_parsear_pagina_documento PASSED         [100%]
+
+=================================== FAILURES ===================================
+_______________________ test_flujo_login_y_arrancar_fase _______________________
+
+self = <MagicMock name='autenticar_en_siped' id='139839456981216'>
+args = ('test_usuario', 'test_password'), kwargs = {}
+expected = "autenticar_en_siped('test_usuario', 'test_password')"
+actual = 'not called.'
+error_message = "expected call not found.\nExpected: autenticar_en_siped('test_usuario', 'test_password')\n  Actual: not called."
+
+    def assert_called_with(self, /, *args, **kwargs):
+        """assert that the last call was made with the specified arguments.
+    
+        Raises an AssertionError if the args and keyword args passed in are
+        different to the last call to the mock."""
+        if self.call_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            actual = 'not called.'
+            error_message = ('expected call not found.\nExpected: %s\n  Actual: %s'
+                    % (expected, actual))
+>           raise AssertionError(error_message)
+E           AssertionError: expected call not found.
+E           Expected: autenticar_en_siped('test_usuario', 'test_password')
+E             Actual: not called.
+
+/usr/lib/python3.13/unittest/mock.py:970: AssertionError
+
+During handling of the above exception, another exception occurred:
+
+selenium = <selenium.webdriver.chrome.webdriver.WebDriver (session="0093d31c5901ee731838af6fdfab31a1")>
+live_server = <LiveServer listening at http://localhost:42161>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7f2ee92055b0>
+
+    def test_flujo_login_y_arrancar_fase(selenium, live_server, mocker):
+        """
+        Prueba el flujo completo desde el punto de vista del usuario
+        con Selenium.
+        """
+    
+        # --- 1. Mocks (¡Exactamente igual que antes!) ---
+        fake_cookies = {"JSESSIONID": "e2e-selenium-test-cookie"}
+        mock_auth = mocker.patch(
+            "app.session_manager.autenticar_en_siped", return_value=fake_cookies
+        )  #
+        mocker.patch(
+            "app.gestor_tareas.obtener_estado_tarea",
+            return_value={"estado": "IDLE", "resultado": "En espera"},
+        )  #
+        mock_tarea = mocker.Mock(id="fake-celery-task-id-e2e")
+        mock_delay = mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
+        mocker.patch("app.gestor_tareas.registrar_tarea_iniciada")  #
+    
+        # --- 2. Ir a la página de Login ---
+        selenium.get(live_server.url() + "/login")  #
+    
+        # --- 3. Llenar el formulario y Enviar ---
+        # WTForms genera 'id' para los campos, así que usamos By.ID
+        selenium.find_element(By.ID, "username").send_keys("test_usuario")
+        selenium.find_element(By.ID, "password").send_keys("test_password")
+        # El botón 'submit' de WTForms usualmente tiene name="submit"
+        selenium.find_element(By.NAME, "submit").click()
+    
+        # --- 4. Verificar Redirección y Estado ---
+    
+        # Esperamos a que la URL cambie al índice (ruta "/")
+        WebDriverWait(selenium, timeout=5).until(EC.url_contains(live_server.url() + "/"))
+    
+        # Verificar que el mock de autenticación fue llamado
+>       mock_auth.assert_called_with("test_usuario", "test_password")
+E       AssertionError: expected call not found.
+E       Expected: autenticar_en_siped('test_usuario', 'test_password')
+E         Actual: not called.
+
+tests/e2e/test_frontend.py:49: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+ * Serving Flask app 'app'
+ * Debug mode: off
+----------------------------- Captured stdout call -----------------------------
+Intentando autenticar a test_usuario...
+Iniciando sesión como test_usuario...
+Error fatal de conexión durante la autenticación: 500 Server Error: Internal Server Error for url: https://intranet.jussantacruz.gob.ar/servicios/controli2.php
+------------------------------- pytest-selenium --------------------------------
+Driver log: /tmp/pytest-of-mariano/pytest-0/test_flujo_login_y_arrancar_fa0/driver.log
+URL: http://localhost:42161/login
+___________________ test_flujo_completo_de_estado_ui_polling ___________________
+
+selenium = <selenium.webdriver.chrome.webdriver.WebDriver (session="cb5037d728b37ba37770078875a20d8b")>
+live_server = <LiveServer listening at http://localhost:42161>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7f2ee92076f0>
+
+    def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
+        """
+        Testea el ciclo de vida completo de la UI para una tarea con Selenium:
+        IDLE -> PENDING -> SUCCESS -> IDLE
+        """
+    
+        # --- Mocks Iniciales ---
+        mocker.patch(
+            "app.session_manager.autenticar_en_siped", return_value={"cookie": "123"}
+        )  #
+        mock_get_estado = mocker.patch(
+            "app.gestor_tareas.obtener_estado_tarea",
+            return_value={"estado": "IDLE", "resultado": "En espera"},
+        )  #
+        mock_tarea = mocker.Mock(id="task-123")
+        mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
+        mocker.patch("app.gestor_tareas.registrar_tarea_iniciada")  #
+    
+        # --- 1. Cargar la página y verificar estado IDLE ---
+        selenium.get(live_server.url() + "/login")  #
+        selenium.find_element(By.ID, "username").send_keys("user")
+        selenium.find_element(By.ID, "password").send_keys("pass")
+        selenium.find_element(By.NAME, "submit").click()
+    
+        # Esperar a que cargue el índice
+        wait = WebDriverWait(selenium, timeout=5)
+>       wait.until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//*[contains(text(), '¡Bienvenido, user!')]")
+            )
+        )
+
+tests/e2e/test_frontend.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <selenium.webdriver.support.wait.WebDriverWait (session="cb5037d728b37ba37770078875a20d8b")>
+method = <function visibility_of_element_located.<locals>._predicate at 0x7f2ee9137380>
+message = ''
+
+    def until(self, method: Callable[[D], Union[Literal[False], T]], message: str = "") -> T:
+        """Wait until the method returns a value that is not False.
+    
+        Calls the method provided with the driver as an argument until the
+        return value does not evaluate to ``False``.
+    
+        Parameters:
+        -----------
+        method: callable(WebDriver)
+            - A callable object that takes a WebDriver instance as an argument.
+    
+        message: str
+            - Optional message for :exc:`TimeoutException`
+    
+        Return:
+        -------
+        object: T
+            - The result of the last call to `method`
+    
+        Raises:
+        -------
+        TimeoutException
+            - If 'method' does not return a truthy value within the WebDriverWait
+            object's timeout
+    
+        Example:
+        --------
+        >>> from selenium.webdriver.common.by import By
+        >>> from selenium.webdriver.support.ui import WebDriverWait
+        >>> from selenium.webdriver.support import expected_conditions as EC
+    
+        # Wait until an element is visible on the page
+        >>> wait = WebDriverWait(driver, 10)
+        >>> element = wait.until(EC.visibility_of_element_located((By.ID, "exampleId")))
+        >>> print(element.text)
+        """
+        screen = None
+        stacktrace = None
+    
+        end_time = time.monotonic() + self._timeout
+        while True:
+            try:
+                value = method(self._driver)
+                if value:
+                    return value
+            except self._ignored_exceptions as exc:
+                screen = getattr(exc, "screen", None)
+                stacktrace = getattr(exc, "stacktrace", None)
+            if time.monotonic() > end_time:
+                break
+            time.sleep(self._poll)
+>       raise TimeoutException(message, screen, stacktrace)
+E       selenium.common.exceptions.TimeoutException: Message: 
+E       Stacktrace:
+E       #0 0x55c9041b62df <unknown>
+E       #1 0x55c903c0411f <unknown>
+E       #2 0x55c903c583f1 <unknown>
+E       #3 0x55c903c587b1 <unknown>
+E       #4 0x55c903ca64b5 <unknown>
+E       #5 0x55c903c80bbd <unknown>
+E       #6 0x55c903ca3f18 <unknown>
+E       #7 0x55c903c80943 <unknown>
+E       #8 0x55c903c4a541 <unknown>
+E       #9 0x55c903c4b272 <unknown>
+E       #10 0x55c90417fa4e <unknown>
+E       #11 0x55c904183027 <unknown>
+E       #12 0x55c904182a7a <unknown>
+E       #13 0x55c9041834c5 <unknown>
+E       #14 0x55c90416b7c3 <unknown>
+E       #15 0x55c9041838d4 <unknown>
+E       #16 0x55c90415449c <unknown>
+E       #17 0x55c9041a1e67 <unknown>
+E       #18 0x55c9041a20c6 <unknown>
+E       #19 0x55c9041b4ee3 <unknown>
+E       #20 0x7fd1086969cb <unknown>
+E       #21 0x7fd10871aa0c <unknown>
+
+.venv/lib/python3.13/site-packages/selenium/webdriver/support/wait.py:138: TimeoutException
+----------------------------- Captured stdout call -----------------------------
+Intentando autenticar a user...
+Iniciando sesión como user...
+Error fatal de conexión durante la autenticación: 500 Server Error: Internal Server Error for url: https://intranet.jussantacruz.gob.ar/servicios/controli2.php
+------------------------------- pytest-selenium --------------------------------
+Driver log: /tmp/pytest-of-mariano/pytest-0/test_flujo_completo_de_estado_0/driver.log
+URL: http://localhost:42161/login
+________________________ test_race_condition_doble_clic ________________________
+
+selenium = <selenium.webdriver.chrome.webdriver.WebDriver (session="bb7a0b8861394376bc131a27ee596c1a")>
+live_server = <LiveServer listening at http://localhost:42161>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7f2ee929a450>
+
+    def test_race_condition_doble_clic(selenium, live_server, mocker):
+        """
+        Testea qué pasa si el usuario hace doble clic muy rápido en 'Iniciar'.
+        """
+    
+        # --- Mocks ---
+        mocker.patch(
+            "app.session_manager.autenticar_en_siped", return_value={"cookie": "123"}
+        )  #
+        mocker.patch(
+            "app.gestor_tareas.obtener_estado_tarea",
+            return_value={"estado": "IDLE", "resultado": "En espera"},
+        )  #
+        mock_tarea = mocker.Mock(id="task-unico-id")
+        mock_delay = mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
+    
+        # --- Cargar página ---
+        selenium.get(live_server.url() + "/login")  #
+        selenium.find_element(By.ID, "username").send_keys("user")
+        selenium.find_element(By.ID, "password").send_keys("pass")
+        selenium.find_element(By.NAME, "submit").click()
+    
+        wait = WebDriverWait(selenium, timeout=5)
+    
+        # --- INICIO DE LA CORRECCIÓN DEL TEST ---
+        # Buscamos el nuevo texto "En espera"
+>       wait.until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//*[contains(text(), 'En espera')]")
+            )
+        )
+
+tests/e2e/test_frontend.py:237: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <selenium.webdriver.support.wait.WebDriverWait (session="bb7a0b8861394376bc131a27ee596c1a")>
+method = <function visibility_of_element_located.<locals>._predicate at 0x7f2ee9137560>
+message = ''
+
+    def until(self, method: Callable[[D], Union[Literal[False], T]], message: str = "") -> T:
+        """Wait until the method returns a value that is not False.
+    
+        Calls the method provided with the driver as an argument until the
+        return value does not evaluate to ``False``.
+    
+        Parameters:
+        -----------
+        method: callable(WebDriver)
+            - A callable object that takes a WebDriver instance as an argument.
+    
+        message: str
+            - Optional message for :exc:`TimeoutException`
+    
+        Return:
+        -------
+        object: T
+            - The result of the last call to `method`
+    
+        Raises:
+        -------
+        TimeoutException
+            - If 'method' does not return a truthy value within the WebDriverWait
+            object's timeout
+    
+        Example:
+        --------
+        >>> from selenium.webdriver.common.by import By
+        >>> from selenium.webdriver.support.ui import WebDriverWait
+        >>> from selenium.webdriver.support import expected_conditions as EC
+    
+        # Wait until an element is visible on the page
+        >>> wait = WebDriverWait(driver, 10)
+        >>> element = wait.until(EC.visibility_of_element_located((By.ID, "exampleId")))
+        >>> print(element.text)
+        """
+        screen = None
+        stacktrace = None
+    
+        end_time = time.monotonic() + self._timeout
+        while True:
+            try:
+                value = method(self._driver)
+                if value:
+                    return value
+            except self._ignored_exceptions as exc:
+                screen = getattr(exc, "screen", None)
+                stacktrace = getattr(exc, "stacktrace", None)
+            if time.monotonic() > end_time:
+                break
+            time.sleep(self._poll)
+>       raise TimeoutException(message, screen, stacktrace)
+E       selenium.common.exceptions.TimeoutException: Message: 
+E       Stacktrace:
+E       #0 0x5653a8d522df <unknown>
+E       #1 0x5653a87a011f <unknown>
+E       #2 0x5653a87f43f1 <unknown>
+E       #3 0x5653a87f47b1 <unknown>
+E       #4 0x5653a88424b5 <unknown>
+E       #5 0x5653a881cbbd <unknown>
+E       #6 0x5653a883ff18 <unknown>
+E       #7 0x5653a881c943 <unknown>
+E       #8 0x5653a87e6541 <unknown>
+E       #9 0x5653a87e7272 <unknown>
+E       #10 0x5653a8d1ba4e <unknown>
+E       #11 0x5653a8d1f027 <unknown>
+E       #12 0x5653a8d1ea7a <unknown>
+E       #13 0x5653a8d1f4c5 <unknown>
+E       #14 0x5653a8d077c3 <unknown>
+E       #15 0x5653a8d1f8d4 <unknown>
+E       #16 0x5653a8cf049c <unknown>
+E       #17 0x5653a8d3de67 <unknown>
+E       #18 0x5653a8d3e0c6 <unknown>
+E       #19 0x5653a8d50ee3 <unknown>
+E       #20 0x7f562cc969cb <unknown>
+E       #21 0x7f562cd1aa0c <unknown>
+
+.venv/lib/python3.13/site-packages/selenium/webdriver/support/wait.py:138: TimeoutException
+----------------------------- Captured stdout call -----------------------------
+Intentando autenticar a user...
+Iniciando sesión como user...
+Error fatal de conexión durante la autenticación: 500 Server Error: Internal Server Error for url: https://intranet.jussantacruz.gob.ar/servicios/controli2.php
+------------------------------- pytest-selenium --------------------------------
+Driver log: /tmp/pytest-of-mariano/pytest-0/test_race_condition_doble_clic0/driver.log
+URL: http://localhost:42161/login
+=============================== warnings summary ===============================
+tests/e2e/test_frontend.py::test_flujo_login_y_arrancar_fase
+tests/e2e/test_frontend.py::test_flujo_completo_de_estado_ui_polling
+tests/e2e/test_frontend.py::test_race_condition_doble_clic
+  /home/mariano/scraping_siped/.venv/lib/python3.13/site-packages/pytest_selenium/pytest_selenium.py:358: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    datetime.utcfromtimestamp(entry["timestamp"] / 1000.0).strftime(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/e2e/test_frontend.py::test_flujo_login_y_arrancar_fase - Asserti...
+FAILED tests/e2e/test_frontend.py::test_flujo_completo_de_estado_ui_polling
+FAILED tests/e2e/test_frontend.py::test_race_condition_doble_clic - selenium....
+================== 3 failed, 22 passed, 3 warnings in 13.72s ===================
