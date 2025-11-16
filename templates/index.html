@@ -112,13 +112,12 @@
 
         <form hx-post="{{ url_for('iniciar_fase', nombre_fase=id_fase) }}" 
               hx-target="#flash-messages" 
-              hx-swap="outerHTML">
-            <button type="submit" data-fase="{{ id_fase }}" 
+              hx-swap="innerHTML"> <button type="submit" data-fase="{{ id_fase }}" 
                 {% if estados_tareas[id_fase].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
                 Iniciar Fase {{ id_fase.split('_')[1] }}
             </button>
         </form>
-    </div>
+        </div>
     {% endfor %}
 
 
@@ -158,6 +157,10 @@
             }
         });
 
+        // ==================================== -->
+        // ===== INICIO DE LA CORRECCIÓN 2 ===== -->
+        // ==================================== -->
+        
         // 2. DESPUÉS del swap: Reaccionamos a la finalización (la primera vez)
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             // Solo nos importa el swap de los contenedores de estado
@@ -176,6 +179,12 @@
             if (!badge) return;
             const status = badge.textContent.trim();
 
+            // --- AÑADIDO: Buscar el botón correspondiente ---
+            const button = document.querySelector(`button[data-fase="${faseId}"]`);
+            if (!button) return;
+            // --- FIN AÑADIDO ---
+
+
             // Si es un estado final...
             if (['SUCCESS', 'FAILURE', 'REVOKED'].includes(status)) {
                 
@@ -188,13 +197,20 @@
                 // 3. Disparar evento para PDFs
                 document.body.dispatchEvent(new Event('tareaFinalizada'));
 
-                // 4. Habilitar el botón
-                const button = document.querySelector(`button[data-fase="${faseId}"]`);
-                if (button) {
-                    button.disabled = false;
-                }
+                // 4. Habilitar el botón (usando la variable 'button' que ya buscamos)
+                button.disabled = false;
+
+            // --- AÑADIDO: Manejar estados "en curso" ---
+            } else if (['PENDING', 'STARTED', 'RETRY'].includes(status)) {
+                // Si es un estado "en curso", deshabilitar el botón
+                button.disabled = true;
             }
+            // --- FIN AÑADIDO ---
         });
+        
+        // ================================== -->
+        // ===== FIN DE LA CORRECCIÓN 2 ===== -->
+        // ================================== -->
     </script>
     </body>
 </html>

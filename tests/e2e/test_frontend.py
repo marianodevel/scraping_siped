@@ -262,3 +262,47 @@ def test_race_condition_doble_clic(selenium, live_server, mocker):
             (By.XPATH, "//*[contains(text(), 'Fase 1 iniciada')]")
         )
     )
+
+
+# ==================================================
+# ===== INICIO DEL TEST Y FIXTURE AÑADIDOS =====
+# ==================================================
+
+
+@pytest.fixture
+def mock_backend(mocker):
+    """
+    Fixture para mockear el backend.
+    Simula el login y la base de datos de estados de tareas.
+    """
+
+    # 1. Mockear el login (usando el prefijo 'app.' como en los otros tests)
+    mocker.patch(
+        "app.session_manager.autenticar_en_siped",
+        return_value={"siped_cookies": "dummy-auth-token"},
+    )
+
+    # 2. Mockear el inicio de las tareas (para que no se llamen a Celery)
+    mocker.patch("app.tasks.fase_1_lista_task.delay")
+    mocker.patch("app.tasks.fase_2_movimientos_task.delay")
+    mocker.patch("app.tasks.fase_3_documentos_task.delay")
+
+    # 3. Simular la base de datos de estado de tareas (p.ej. Redis)
+    #    Esto nos da control total sobre lo que ve el frontend.
+    test_states = {
+        "fase_1": {"estado": "IDLE", "resultado": "Sin iniciar"},
+        "fase_2": {"estado": "IDLE", "resultado": "Sin iniciar"},
+        "fase_3": {"estado": "IDLE", "resultado": "Sin iniciar"},
+    }
+
+    # 4. Mockear la función que lee los estados
+    def get_mock_state(task_id, nombre_fase):
+        # El task_id es ignorado, solo usamos el nombre_fase
+        # para devolver el estado que definimos en este test.
+        return test_states.get(
+            nombre_fase, {"estado": "FAILURE", "resultado": "Fase desconocida"}
+        )
+
+    mocker.patch("app.gestor_tareas.obtener_estado_tarea", side_effect=get_mock_state)
+
+    # Devolvemos el dict de estados para que
