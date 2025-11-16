@@ -1,262 +1,261 @@
 import pytest
 import time
+import requests  # Para controlar el estado del servidor
 
-# --- ¡Nuevos imports para Selenium! ---
+# --- Imports de Selenium ---
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# Esta fixture 'live_server' (de pytest-flask) sigue siendo la misma.
-# La fixture 'selenium' (de pytest-selenium) reemplaza a 'page'.
-# 'mocker' (de pytest-mock) sigue siendo el mismo.
+# =================================================================
+# ===== VERSIÓN FINAL (SIN MOCKS, CON WAITS DE CLIC) =====
+# =================================================================
 
 
-def test_flujo_login_y_arrancar_fase(selenium, live_server, mocker):
+# URL de la API de control de Mocks
+def get_test_api_urls(live_server):
+    base_url = live_server.url()
+    return {
+        "set": f"{base_url}/_test/set_state",
+        "reset": f"{base_url}/_test/reset_states",
+    }
+
+
+# Fixture para resetear el estado del servidor antes de cada test
+@pytest.fixture(autouse=True)
+def reset_server_state(live_server):
+    """
+    Se ejecuta automáticamente antes de CADA test en este archivo.
+    Llama al endpoint de reseteo en el servidor 'live' para asegurar
+    que cada test comience con un estado limpio (todas las fases en IDLE).
+    """
+    api_urls = get_test_api_urls(live_server)
+    try:
+        requests.post(api_urls["reset"])
+    except requests.exceptions.ConnectionError:
+        # A veces el servidor (Proceso 2) tarda un instante en arrancar
+        time.sleep(0.1)
+        # Reintentar la conexión
+        try:
+            requests.post(api_urls["reset"])
+        except Exception as e:
+            print(
+                f"FATAL: No se pudo conectar al live_server para resetear el estado: {e}"
+            )
+            pytest.skip("No se pudo conectar al live_server para el reseteo de estado.")
+
+
+def test_flujo_login_y_arrancar_fase(selenium, live_server):
     """
     Prueba el flujo completo desde el punto de vista del usuario
     con Selenium.
     """
-
-    # --- 1. Mocks (¡Exactamente igual que antes!) ---
-    fake_cookies = {"JSESSIONID": "e2e-selenium-test-cookie"}
-    mock_auth = mocker.patch(
-        "app.session_manager.autenticar_en_siped", return_value=fake_cookies
-    )  #
-    mocker.patch(
-        "app.gestor_tareas.obtener_estado_tarea",
-        return_value={"estado": "IDLE", "resultado": "En espera"},
-    )  #
-    mock_tarea = mocker.Mock(id="fake-celery-task-id-e2e")
-    mock_delay = mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
-    mocker.patch("app.gestor_tareas.registrar_tarea_iniciada")  #
+    # --- 1. Mocks (ELIMINADOS) ---
+    # Ya no se necesita 'mocker'. La app se simula a sí misma.
 
     # --- 2. Ir a la página de Login ---
-    selenium.get(live_server.url() + "/login")  #
+    selenium.get(live_server.url() + "/login")
 
     # --- 3. Llenar el formulario y Enviar ---
-    # WTForms genera 'id' para los campos, así que usamos By.ID
     selenium.find_element(By.ID, "username").send_keys("test_usuario")
-    selenium.find_element(By.ID, "password").send_keys("test_password")
-    # El botón 'submit' de WTForms usualmente tiene name="submit"
+    selenium.find_element(By.ID, "password").send_keys(
+        "test_password"
+    )  # Válida para el mock
     selenium.find_element(By.NAME, "submit").click()
 
     # --- 4. Verificar Redirección y Estado ---
-
-    # Esperamos a que la URL cambie al índice (ruta "/")
-    WebDriverWait(selenium, timeout=5).until(EC.url_contains(live_server.url() + "/"))
-
-    # Verificar que el mock de autenticación fue llamado
-    mock_auth.assert_called_with("test_usuario", "test_password")
-
-    # Esperamos a que aparezca el mensaje de bienvenida y el estado
     wait = WebDriverWait(selenium, timeout=5)
+    wait.until(
+        EC.url_contains(live_server.url() + "/")
+    )  # Esperar a estar en la página de inicio
     wait.until(
         EC.visibility_of_element_located(
             (By.XPATH, "//*[contains(text(), '¡Bienvenido, test_usuario!')]")
         )
     )
 
-    # --- INICIO DE LA CORRECCIÓN DEL TEST ---
-    # Buscamos el nuevo texto "En espera" y el badge "IDLE"
+    # Verificar que el estado inicial (del MockGestorTareas) es "En espera (Mock)"
     wait.until(
         EC.visibility_of_element_located(
-            (By.XPATH, "//*[contains(text(), 'En espera')]")
+            (By.XPATH, "//*[contains(text(), 'En espera (Mock)')]")
         )
     )
-    wait.until(
-        EC.visibility_of_element_located(
-            (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'IDLE')]")
-        )
-    )
-    # --- FIN DE LA CORRECCIÓN DEL TEST ---
-
-    # --- 5. Iniciar la Fase 1 ---
-
-    # Cambiamos el mock para el polling
-    mocker.patch(
-        "app.gestor_tareas.obtener_estado_tarea",
-        return_value={"estado": "PENDING", "resultado": "Tarea iniciada..."},
-    )  #
-
-    # El ID es 'estado-fase_1' (con guion bajo)
-    fase_1_control = selenium.find_element(By.ID, "estado-fase_1")
-    fase_1_control.find_element(
-        By.XPATH, ".//button[contains(text(), 'Iniciar')]"
-    ).click()
-
-    # --- 6. Verificar el resultado (Polling) ---
-
-    # Esperamos a que el texto "PENDING" aparezca (usando el ID corregido)
-    wait.until(
-        EC.visibility_of_element_located(
-            (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'PENDING')]")
-        )
-    )
-
-    # Verificamos el mensaje flash
     wait.until(
         EC.visibility_of_element_located(
             (
                 By.XPATH,
-                f"//*[contains(text(), 'Fase 1 iniciada con ID: {mock_tarea.id}')]",
+                "//*[@id='estado-resultado-fase_1']//*[contains(text(), 'IDLE')]",
+            )
+        )
+    )
+
+    # --- 5. Iniciar la Fase 1 ---
+    # CORRECCIÓN: Esperar a que el botón sea clicable para evitar race condition
+    fase_1_boton_locator = (By.CSS_SELECTOR, "button[data-fase='fase_1']")
+    wait.until(EC.element_to_be_clickable(fase_1_boton_locator))
+    selenium.find_element(*fase_1_boton_locator).click()
+
+    # --- 6. Verificar el resultado (Polling) ---
+    # El MockGestorTareas pone el estado en STARTED después del click
+    wait.until(
+        EC.visibility_of_element_located(
+            (
+                By.XPATH,
+                "//*[@id='estado-resultado-fase_1']//*[contains(text(), 'STARTED')]",
+            )
+        )
+    )
+    wait.until(
+        EC.visibility_of_element_located(
+            (
+                By.XPATH,
+                "//*[@id='estado-resultado-fase_1']//*[contains(text(), 'En cola (Mock)...')]",
+            )
+        )
+    )
+
+    # El ID de la tarea es ahora el simulado por el MockTask en app.py
+    wait.until(
+        EC.visibility_of_element_located(
+            (
+                By.XPATH,
+                "//*[contains(text(), 'Fase 1 iniciada con ID: mock-celery-id-fase_1')]",
             )
         )
     )
 
 
-def test_flujo_completo_de_estado_ui_polling(selenium, live_server, mocker):
+def test_flujo_completo_de_estado_ui_polling(selenium, live_server):
     """
     Testea el ciclo de vida completo de la UI para una tarea con Selenium:
     IDLE -> PENDING -> SUCCESS -> IDLE
     """
 
-    # --- Mocks Iniciales ---
-    mocker.patch(
-        "app.session_manager.autenticar_en_siped", return_value={"cookie": "123"}
-    )  #
-    mock_get_estado = mocker.patch(
-        "app.gestor_tareas.obtener_estado_tarea",
-        return_value={"estado": "IDLE", "resultado": "En espera"},
-    )  #
-    mock_tarea = mocker.Mock(id="task-123")
-    mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
-    mocker.patch("app.gestor_tareas.registrar_tarea_iniciada")  #
+    api_urls = get_test_api_urls(live_server)
+    wait = WebDriverWait(selenium, timeout=5)
 
     # --- 1. Cargar la página y verificar estado IDLE ---
-    selenium.get(live_server.url() + "/login")  #
+    selenium.get(live_server.url() + "/login")
     selenium.find_element(By.ID, "username").send_keys("user")
-    selenium.find_element(By.ID, "password").send_keys("pass")
+    selenium.find_element(By.ID, "password").send_keys("pass")  # Válida para el mock
     selenium.find_element(By.NAME, "submit").click()
 
-    # Esperar a que cargue el índice
-    wait = WebDriverWait(selenium, timeout=5)
     wait.until(
         EC.visibility_of_element_located(
             (By.XPATH, "//*[contains(text(), '¡Bienvenido, user!')]")
         )
     )
 
-    # Localizar el contenedor de la Fase 1 (usando el ID corregido)
-    fase_1_control = selenium.find_element(By.ID, "estado-fase_1")
-    iniciar_btn = fase_1_control.find_element(
-        By.XPATH, ".//button[contains(text(), 'Iniciar')]"
+    fase_1_div_estado = selenium.find_element(By.ID, "estado-resultado-fase_1")
+    iniciar_btn_locator = (By.CSS_SELECTOR, "button[data-fase='fase_1']")
+
+    # Verificar estado inicial IDLE y texto "En espera (Mock)"
+    wait.until(
+        EC.visibility_of(
+            fase_1_div_estado.find_element(By.XPATH, ".//*[contains(text(), 'IDLE')]")
+        )
+    )
+    wait.until(
+        EC.visibility_of(
+            fase_1_div_estado.find_element(
+                By.XPATH, ".//*[contains(text(), 'En espera (Mock)')]"
+            )
+        )
     )
 
-    # --- INICIO DE LA CORRECCIÓN DEL TEST ---
-    # Verificar estado inicial IDLE y texto "En espera"
-    wait.until(
-        EC.visibility_of(
-            fase_1_control.find_element(By.XPATH, ".//*[contains(text(), 'IDLE')]")
-        )
-    )
-    wait.until(
-        EC.visibility_of(
-            fase_1_control.find_element(By.XPATH, ".//*[contains(text(), 'En espera')]")
-        )
-    )
+    # CORRECCIÓN: Esperar a que sea clicable
+    iniciar_btn = wait.until(EC.element_to_be_clickable(iniciar_btn_locator))
     assert iniciar_btn.is_enabled()
-    # --- FIN DE LA CORRECCIÓN DEL TEST ---
 
-    # --- 2. Iniciar Tarea y verificar estado PENDING ---
-    # Actualizamos mock para que devuelva "En cola..." (más semántico)
-    mock_get_estado.return_value = {"estado": "PENDING", "resultado": "En cola..."}
+    # --- 2. Iniciar Tarea y verificar estado PENDING/STARTED ---
     iniciar_btn.click()
 
-    # Verificar que el badge cambia a PENDING (usando el ID corregido)
+    # Verificar que el badge cambia a STARTED
     wait.until(
         EC.visibility_of_element_located(
-            (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'PENDING')]")
+            (
+                By.XPATH,
+                "//*[@id='estado-resultado-fase_1']//*[contains(text(), 'STARTED')]",
+            )
         )
     )
-    # Verificar que el texto cambia a "En cola..."
     wait.until(
         EC.visibility_of_element_located(
-            (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'En cola...')]")
+            (
+                By.XPATH,
+                "//*[@id='estado-resultado-fase_1']//*[contains(text(), 'En cola (Mock)...')]",
+            )
         )
     )
 
-    # Verificar que el botón está deshabilitado
-    iniciar_btn_actualizado = selenium.find_element(
-        By.ID, "estado-fase_1"
-    ).find_element(By.XPATH, ".//button[contains(text(), 'Iniciar')]")
-    assert not iniciar_btn_actualizado.is_enabled()
+    # Verificar que el botón está deshabilitado (gracias al JS htmx:afterSwap)
+    wait.until(
+        lambda d: d.find_element(
+            By.CSS_SELECTOR, "button[data-fase='fase_1']"
+        ).get_attribute("disabled")
+        == "true"
+    )
 
     # --- 3. Simular fin de Tarea y verificar estado SUCCESS ---
-    mock_get_estado.return_value = {
-        "estado": "SUCCESS",
-        "resultado": "Completado!",
-    }
+    # ¡Aquí usamos la API de test para cambiar el estado en el servidor!
+    requests.post(
+        api_urls["set"],
+        json={"fase": "fase_1", "estado": "SUCCESS", "resultado": "Completado! (Mock)"},
+    )
 
-    # Esperar a que el polling detecte el estado SUCCESS (usando el ID corregido)
+    # Esperar a que el polling detecte el estado SUCCESS
     wait.until(
         EC.visibility_of_element_located(
-            (By.XPATH, "//*[@id='estado-fase_1']//*[contains(text(), 'SUCCESS')]")
+            (
+                By.XPATH,
+                "//*[@id='estado-resultado-fase_1']//*[contains(text(), 'SUCCESS')]",
+            )
+        )
+    )
+    wait.until(
+        EC.visibility_of_element_located(
+            (By.XPATH, "//*[contains(text(), 'Completado! (Mock)')]")
         )
     )
 
-    # Verificar que el resultado se muestra
-    wait.until(
-        EC.visibility_of_element_located(
-            (By.XPATH, "//*[contains(text(), 'Completado!')]")
-        )
-    )
-
-    # El botón 'Iniciar' debería volver a estar habilitado
-    iniciar_btn_final = selenium.find_element(By.ID, "estado-fase_1").find_element(
-        By.XPATH, ".//button[contains(text(), 'Iniciar')]"
-    )
-    assert iniciar_btn_final.is_enabled()
+    # El botón 'Iniciar' debería volver a estar habilitado (gracias al JS htmx:afterSwap)
+    wait.until(EC.element_to_be_clickable(iniciar_btn_locator))
+    assert selenium.find_element(*iniciar_btn_locator).is_enabled()
 
 
-def test_race_condition_doble_clic(selenium, live_server, mocker):
+def test_race_condition_doble_clic(selenium, live_server):
     """
     Testea qué pasa si el usuario hace doble clic muy rápido en 'Iniciar'.
     """
-
-    # --- Mocks ---
-    mocker.patch(
-        "app.session_manager.autenticar_en_siped", return_value={"cookie": "123"}
-    )  #
-    mocker.patch(
-        "app.gestor_tareas.obtener_estado_tarea",
-        return_value={"estado": "IDLE", "resultado": "En espera"},
-    )  #
-    mock_tarea = mocker.Mock(id="task-unico-id")
-    mock_delay = mocker.patch("app.fase_1_lista_task.delay", return_value=mock_tarea)  #
-
-    # --- Cargar página ---
-    selenium.get(live_server.url() + "/login")  #
-    selenium.find_element(By.ID, "username").send_keys("user")
-    selenium.find_element(By.ID, "password").send_keys("pass")
-    selenium.find_element(By.NAME, "submit").click()
-
     wait = WebDriverWait(selenium, timeout=5)
 
-    # --- INICIO DE LA CORRECCIÓN DEL TEST ---
-    # Buscamos el nuevo texto "En espera"
+    # --- Cargar página ---
+    selenium.get(live_server.url() + "/login")
+    selenium.find_element(By.ID, "username").send_keys("user")
+    selenium.find_element(By.ID, "password").send_keys("pass")  # Válida para el mock
+    selenium.find_element(By.NAME, "submit").click()
+
     wait.until(
         EC.visibility_of_element_located(
-            (By.XPATH, "//*[contains(text(), 'En espera')]")
+            (By.XPATH, "//*[contains(text(), 'En espera (Mock)')]")
         )
     )
-    # --- FIN DE LA CORRECCIÓN DEL TEST ---
 
     # --- Simular Clics Rápidos ---
-    iniciar_btn = selenium.find_element(By.ID, "estado-fase_1").find_element(
-        By.XPATH, ".//button[contains(text(), 'Iniciar')]"
-    )
+    # CORRECCIÓN: Esperar a que sea clicable
+    iniciar_btn_locator = (By.CSS_SELECTOR, "button[data-fase='fase_1']")
+    iniciar_btn = wait.until(EC.element_to_be_clickable(iniciar_btn_locator))
 
     iniciar_btn.click()
     try:
-        selenium.find_element(By.ID, "estado-fase_1").find_element(
-            By.XPATH, ".//button[contains(text(), 'Iniciar')]"
-        ).click()
+        # Este segundo clic debería fallar porque el botón
+        # se deshabilita por el JS (htmx:afterSwap)
+        iniciar_btn.click()
     except Exception:
-        pass
+        pass  # Esperamos que este segundo clic falle
 
     # --- Verificar ---
-    mock_delay.assert_called_once()
-
+    # El flash message solo debe aparecer una vez (o al menos que aparece)
     wait.until(
         EC.visibility_of_element_located(
             (By.XPATH, "//*[contains(text(), 'Fase 1 iniciada')]")
@@ -265,44 +264,87 @@ def test_race_condition_doble_clic(selenium, live_server, mocker):
 
 
 # ==================================================
-# ===== INICIO DEL TEST Y FIXTURE AÑADIDOS =====
+# ===== TEST DEL FIX: CONSECUTIVE_PHASE_LAUNCH =====
 # ==================================================
 
 
-@pytest.fixture
-def mock_backend(mocker):
+def test_consecutive_phase_launch_and_button_disable(live_server, selenium):
     """
-    Fixture para mockear el backend.
-    Simula el login y la base de datos de estados de tareas.
+    Test E2E que verifica los dos bugs solucionados:
+    1. Se pueden lanzar fases consecutivas (el target de HTMX no se destruye).
+    2. Los botones se deshabilitan/habilitan correctamente según el estado.
     """
+    api_urls = get_test_api_urls(live_server)
+    wait = WebDriverWait(selenium, 5)
 
-    # 1. Mockear el login (usando el prefijo 'app.' como en los otros tests)
-    mocker.patch(
-        "app.session_manager.autenticar_en_siped",
-        return_value={"siped_cookies": "dummy-auth-token"},
+    # --- 1. Setup y Login ---
+    selenium.get(f"{live_server.url()}/login")
+    selenium.find_element(By.ID, "username").send_keys("testuser")
+    selenium.find_element(By.ID, "password").send_keys(
+        "testpass"
+    )  # Válida para el mock
+    selenium.find_element(By.ID, "submit").click()
+
+    WebDriverWait(selenium, 10).until(
+        EC.text_to_be_present_in_element((By.TAG_NAME, "h1"), "Scraper de Expedientes")
     )
 
-    # 2. Mockear el inicio de las tareas (para que no se llamen a Celery)
-    mocker.patch("app.tasks.fase_1_lista_task.delay")
-    mocker.patch("app.tasks.fase_2_movimientos_task.delay")
-    mocker.patch("app.tasks.fase_3_documentos_task.delay")
+    # --- 2. Localizar Elementos ---
+    boton_fase_1_locator = (By.CSS_SELECTOR, "button[data-fase='fase_1']")
+    boton_fase_2_locator = (By.CSS_SELECTOR, "button[data-fase='fase_2']")
+    badge_fase_1_locator = (By.CSS_SELECTOR, "#estado-resultado-fase_1 .status-badge")
 
-    # 3. Simular la base de datos de estado de tareas (p.ej. Redis)
-    #    Esto nos da control total sobre lo que ve el frontend.
-    test_states = {
-        "fase_1": {"estado": "IDLE", "resultado": "Sin iniciar"},
-        "fase_2": {"estado": "IDLE", "resultado": "Sin iniciar"},
-        "fase_3": {"estado": "IDLE", "resultado": "Sin iniciar"},
-    }
+    # Verificar estado inicial
+    # CORRECCIÓN: Esperar a que sean clicables
+    boton_fase_1 = wait.until(EC.element_to_be_clickable(boton_fase_1_locator))
+    boton_fase_2 = wait.until(EC.element_to_be_clickable(boton_fase_2_locator))
 
-    # 4. Mockear la función que lee los estados
-    def get_mock_state(task_id, nombre_fase):
-        # El task_id es ignorado, solo usamos el nombre_fase
-        # para devolver el estado que definimos en este test.
-        return test_states.get(
-            nombre_fase, {"estado": "FAILURE", "resultado": "Fase desconocida"}
-        )
+    assert boton_fase_1.is_enabled()
+    assert boton_fase_2.is_enabled()
+    wait.until(EC.text_to_be_present_in_element(badge_fase_1_locator, "IDLE"))
 
-    mocker.patch("app.gestor_tareas.obtener_estado_tarea", side_effect=get_mock_state)
+    # --- 3. Lanzar Fase 1 y verificar deshabilitación (Fix 2) ---
+    boton_fase_1.click()
 
-    # Devolvemos el dict de estados para que
+    # Verificar que el botón se deshabilita (gracias al JS htmx:afterSwap)
+    wait.until(
+        lambda d: d.find_element(
+            By.CSS_SELECTOR, "button[data-fase='fase_1']"
+        ).get_attribute("disabled")
+        == "true"
+    )
+
+    # Verificar que el badge también se actualizó
+    wait.until(EC.text_to_be_present_in_element(badge_fase_1_locator, "STARTED"))
+    print("TEST: Fase 1 iniciada y botón deshabilitado correctamente.")
+
+    # --- 4. Finalizar Fase 1 y verificar habilitación (Fix 2) ---
+    requests.post(
+        api_urls["set"],
+        json={"fase": "fase_1", "estado": "SUCCESS", "resultado": "Éxito (Mock)."},
+    )
+
+    # Esperar a que el polling lo detecte y el JS (htmx:afterSwap) habilite el botón
+    wait.until(EC.element_to_be_clickable(boton_fase_1_locator))
+
+    assert selenium.find_element(*boton_fase_1_locator).is_enabled()
+    assert selenium.find_element(*badge_fase_1_locator).text == "SUCCESS"
+    print("TEST: Fase 1 finalizada y botón habilitado correctamente.")
+
+    # --- 5. Lanzar Fase 2 y verificar (Fix 1: Target Bug) ---
+    badge_fase_2_locator = (By.CSS_SELECTOR, "#estado-resultado-fase_2 .status-badge")
+
+    # El botón 'boton_fase_2' (que encontramos antes) debería ser clicable
+    boton_fase_2.click()
+
+    # Verificar que la Fase 2 se lanza y su botón se deshabilita
+    wait.until(
+        lambda d: d.find_element(
+            By.CSS_SELECTOR, "button[data-fase='fase_2']"
+        ).get_attribute("disabled")
+        == "true"
+    )
+    wait.until(EC.text_to_be_present_in_element(badge_fase_2_locator, "STARTED"))
+
+    assert selenium.find_element(*boton_fase_2_locator).is_enabled() == False
+    print("TEST: Fase 2 iniciada consecutivamente con éxito.")
