@@ -1,3 +1,4 @@
+# tests/unit/test_parsers.py
 import parsers
 import config
 
@@ -65,26 +66,80 @@ def test_parsear_movimientos_de_ajax_html(html_ajax_movimientos):
     )
 
 
-# --- Pruebas de Fase 3 (Documento) ---
+# --- Pruebas de Lógica de Normalización de URL (NUEVO) ---
 
 
-def test_parsear_pagina_documento(html_pagina_documento):
-    data = parsers.parsear_pagina_documento(html_pagina_documento)
+def test_normalizar_url_pdf_principal():
+    # Caso 1: URL relativa incompleta (pdfabogado.php)
+    url_rel = "agrega_plantilla/pdfabogado.php?id=123"
+    res = parsers.normalizar_url_pdf(url_rel, "principal")
+    assert (
+        res
+        == "https://intranet.jussantacruz.gob.ar/siped/agrega_plantilla/pdfabogado.php?id=123"
+    )
 
-    # Datos del expediente
+    # Caso 2: URL absoluta incorrecta (falta /siped/)
+    url_abs_bad = (
+        "https://intranet.jussantacruz.gob.ar/agrega_plantilla/pdfabogado.php?id=123"
+    )
+    res = parsers.normalizar_url_pdf(url_abs_bad, "principal")
+    assert (
+        res
+        == "https://intranet.jussantacruz.gob.ar/siped/agrega_plantilla/pdfabogado.php?id=123"
+    )
+
+    # Caso 3: URL absoluta incorrecta con variante (pdfabogadoanterior.php)
+    url_antigua = "https://intranet.jussantacruz.gob.ar/agrega_plantilla/pdfabogadoanterior.php?id=456"
+    res = parsers.normalizar_url_pdf(url_antigua, "principal")
+    assert (
+        res
+        == "https://intranet.jussantacruz.gob.ar/siped/agrega_plantilla/pdfabogadoanterior.php?id=456"
+    )
+
+
+def test_normalizar_url_pdf_adjunto():
+    # Caso 1: URL relativa sin siped
+    url_rel = "ver_adjunto_escrito.php?id=789"
+    res = parsers.normalizar_url_pdf(url_rel, "adjunto")
+    assert (
+        res
+        == "https://intranet.jussantacruz.gob.ar/siped/expediente/buscar/ver_adjunto_escrito.php?id=789"
+    )
+
+    # Caso 2: URL absoluta incorrecta (falta /siped/expediente/buscar/)
+    url_abs_bad = "https://intranet.jussantacruz.gob.ar/ver_adjunto_escrito.php?id=789"
+    res = parsers.normalizar_url_pdf(url_abs_bad, "adjunto")
+    assert (
+        res
+        == "https://intranet.jussantacruz.gob.ar/siped/expediente/buscar/ver_adjunto_escrito.php?id=789"
+    )
+
+
+# --- Pruebas de Fase 3 (Documento con PDFs) ---
+
+
+def test_parsear_pagina_documento_pdf_links(html_pagina_documento_pdfs):
+    """
+    Prueba la nueva lógica de parsing con el fixture actualizado.
+    """
+    data = parsers.parsear_pagina_documento(html_pagina_documento_pdfs)
+
+    # 1. Verificar metadatos (extraídos del div.titulo o fallback)
     assert data["expediente_nro"] == "EXP-100/2025"
     assert data["caratula"] == "PEREZ, JUAN C/ GOMEZ, MARIA"
 
-    # Datos del escrito
-    assert data["nombre_escrito"] == "PROVEIDO"
-    assert data["codigo_validacion"] == "ABC123DEF"
+    # 2. Verificar que se extrajo y normalizó el PDF principal (pdfabogadoanterior)
+    assert data["url_pdf_principal"] is not None
+    # El fixture usa la versión "anterior" mal formada para probar la corrección
+    assert "siped/agrega_plantilla/pdfabogadoanterior.php" in data["url_pdf_principal"]
 
-    # Texto principal
-    assert "Texto principal del documento." in data["texto_providencia"]
-    assert "Segunda línea." in data["texto_providencia"]
+    # 3. Verificar adjuntos
+    assert len(data["adjuntos"]) == 2
+    assert data["adjuntos"][0]["nombre"] == "OFI00134404.PDF"
+    # Verificar que la URL del adjunto se normalizó (se agregó /siped/expediente/buscar/)
+    assert (
+        "siped/expediente/buscar/ver_adjunto_escrito.php" in data["adjuntos"][0]["url"]
+    )
 
-    # Firmantes
-    assert len(data["firmantes"]) == 1
-    assert data["firmantes"][0]["cargo"] == "JUEZ"
-    assert data["firmantes"][0]["nombre"] == "DR. MARIANO DEVEL"
-    assert data["firmantes"][0]["fecha"] == "01/01/2025 10:00"
+    # 4. Verificar texto placeholder
+    assert data["texto_providencia"] == "Se prioriza descarga de PDF."

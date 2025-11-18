@@ -1,14 +1,13 @@
 # parsers.py
 import re
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse
 import config
 
 
 def obtener_url_meta_refresh(html_text, base_path):
     """
     Extrae la URL de una etiqueta meta refresh.
-    (Original: get_meta_refresh_url)
     """
     soup = BeautifulSoup(html_text, "html.parser")
     meta_tag = soup.find(
@@ -30,7 +29,6 @@ def obtener_url_meta_refresh(html_text, base_path):
 def obtener_enlace_token_siped(html_text):
     """
     Extrae el enlace <a> que contiene el token de SIPED.
-    (Original: get_siped_token_link)
     """
     soup = BeautifulSoup(html_text, "html.parser")
     siped_link = soup.find("a", href=re.compile(r"/siped\?token="))
@@ -47,7 +45,6 @@ def obtener_enlace_token_siped(html_text):
 def parsear_lista_expedientes(html_text):
     """
     Parsea la tabla de expedientes y devuelve una lista de dicts.
-    (Original: parse_expediente_list_page)
     """
     soup = BeautifulSoup(html_text, "html.parser")
     table = soup.find("table", class_="table-striped")
@@ -62,7 +59,6 @@ def parsear_lista_expedientes(html_text):
             link_detalle = None
             if link_tag and link_tag.get("href"):
                 relative_url = link_tag.get("href")
-                # Unimos la URL base de la lista con la URL relativa del link
                 link_detalle = urljoin(config.LISTA_EXPEDIENTES_URL, relative_url)
 
             exp_data = {
@@ -83,7 +79,6 @@ def parsear_lista_expedientes(html_text):
 def encontrar_siguiente_pagina_inicio(html_text):
     """
     Encuentra el valor 'inicio' del botón SIGUIENTE.
-    (Original: find_next_list_page_inicio)
     """
     soup = BeautifulSoup(html_text, "html.parser")
 
@@ -109,7 +104,6 @@ def encontrar_siguiente_pagina_inicio(html_text):
 def parsear_detalle_para_ajax_params(html_detalle):
     """
     Extrae los parámetros dinámicos para la llamada AJAX 'vermas'.
-    (Original: parse_detail_page_for_ajax_params)
     """
     params = {}
     soup = BeautifulSoup(html_detalle, "html.parser")
@@ -145,7 +139,6 @@ def parsear_detalle_para_ajax_params(html_detalle):
 def parsear_movimientos_de_ajax_html(html_movimientos, nro_expediente):
     """
     Parsea la tabla de movimientos devuelta por AJAX.
-    (Original: parse_movimientos_from_ajax_html)
     """
     soup = BeautifulSoup(html_movimientos, "html.parser")
     table = soup.find("table", class_="table-hover")
@@ -159,7 +152,6 @@ def parsear_movimientos_de_ajax_html(html_movimientos, nro_expediente):
             form_tag = cols[1].find("form")
             link_escrito = None
             if form_tag and form_tag.get("action"):
-                # Construimos la URL absoluta del link del escrito
                 link_escrito = urljoin(
                     config.AJAX_MOVIMIENTOS_URL, form_tag.get("action")
                 )
@@ -180,16 +172,84 @@ def parsear_movimientos_de_ajax_html(html_movimientos, nro_expediente):
     return movimientos_list
 
 
+def normalizar_url_pdf(url, tipo):
+    """
+    Corrige URLs mal formadas (absolutas o relativas) asegurando que contengan
+    la ruta correcta de la aplicación SIPED.
+
+    tipo: 'principal' o 'adjunto'
+    """
+    if not url:
+        return None
+
+    url = url.strip()
+
+    # 1. Convertir a absoluta si no lo es
+    if not url.startswith("http"):
+        url = urljoin(config.BASE_URL, url)
+
+    # 2. Analizar la URL
+    parsed = urlparse(url)
+    path = parsed.path
+
+    # 3. Definir el path esperado según el tipo
+
+    # CAMBIO: Ahora detecta 'pdfabogado' en general para cubrir 'pdfabogado.php' y 'pdfabogadoanterior.php'
+    if tipo == "principal" and "pdfabogado" in path:
+        # El path correcto debe contener /siped/agrega_plantilla/
+        if "/siped/agrega_plantilla/" not in path:
+            # Reemplazar cualquier variante incorrecta (ej: /agrega_plantilla/)
+            new_path = path.replace("/agrega_plantilla/", "/siped/agrega_plantilla/")
+
+            # Si no hubo reemplazo (ej: era pdfabogado.php directo), forzarlo
+            if new_path == path:
+                if path.startswith("/pdfabogado"):  # Cubre ambos php
+                    new_path = "/siped/agrega_plantilla" + path
+                elif "siped" not in path:
+                    new_path = "/siped/agrega_plantilla/" + path.lstrip("/")
+
+            url = urlunparse(parsed._replace(path=new_path))
+
+    elif tipo == "adjunto" and "ver_adjunto_escrito.php" in path:
+        # El path correcto debe contener /siped/expediente/buscar/
+        if "/siped/expediente/buscar/" not in path:
+            # Intentar arreglar paths comunes incorrectos
+            new_path = path
+            if "/ver_adjunto_escrito.php" in path:
+                # Si es root relative sin siped
+                if not path.startswith("/siped/"):
+                    new_path = "/siped/expediente/buscar/ver_adjunto_escrito.php"
+
+            url = urlunparse(parsed._replace(path=new_path))
+
+    return url
+
+
 def parsear_pagina_documento(html_text):
     """
-    Extrae todos los datos estructurados de la página de un escrito.
-    (Original: parse_document_page)
+    Extrae enlaces a PDFs (principal y adjuntos) y metadatos básicos.
     """
     soup = BeautifulSoup(html_text, "html.parser")
-    data = {"firmantes": []}
+    data = {
+        "firmantes": [],
+        "url_pdf_principal": None,
+        "adjuntos": [],
+        "texto_providencia": "Se prioriza descarga de PDF.",
+        "expediente_nro": None,
+        "caratula": None,
+    }
 
     try:
-        # --- 1. Extraer datos del Expediente (Primera tabla) ---
+        # --- 1A. Extracción del Nro. Expediente ---
+        titulo_div = soup.find("div", class_="titulo")
+        if titulo_div:
+            h2_expediente = titulo_div.find("h2")
+            if h2_expediente:
+                exp_nro = h2_expediente.get_text(strip=True)
+                match = re.search(r"(\d{4,6}/\d{4})", exp_nro)
+                data["expediente_nro"] = match.group(0) if match else exp_nro
+
+        # --- 1B. Extracción de metadatos (Fallback) ---
         table_expediente = soup.find("img", {"src": re.compile(r"SCescudo\.png")})
         if table_expediente:
             table_expediente = table_expediente.find_parent("table")
@@ -197,69 +257,49 @@ def parsear_pagina_documento(html_text):
         if table_expediente:
             rows = table_expediente.find_all("tr")
             if len(rows) > 5:
-                # Expediente: (en rows[1])
-                exp_tag = rows[1].find("strong", class_="Estilo1")
-                if exp_tag:
-                    data["expediente_nro"] = (
-                        exp_tag.get_text(strip=True).replace("Expediente:", "").strip()
-                    )
-
-                # Dependencia (en rows[2])
-                dep_tag = rows[2].find("strong")
-                if dep_tag:
-                    data["dependencia"] = dep_tag.get_text(strip=True)
-
-                # Secretaría (en rows[3])
-                sec_tag = rows[3].find("strong")
-                if sec_tag:
-                    data["secretaria"] = sec_tag.get_text(strip=True)
-
-                # Carátula (en rows[5])
+                if not data["expediente_nro"]:
+                    exp_tag = rows[1].find("strong")
+                    if exp_tag:
+                        data["expediente_nro"] = (
+                            exp_tag.get_text(strip=True)
+                            .replace("Expediente:", "")
+                            .strip()
+                        )
                 car_tag = rows[5].find("strong")
                 if car_tag:
                     data["caratula"] = (
                         car_tag.get_text(strip=True).replace("Cáratula:", "").strip()
                     )
 
-        # --- 2. Extraer datos del Escrito (Segunda tabla) ---
-        table_documento = soup.find(
-            "strong", string=re.compile(r"Código de Validación:")
-        )
-        if table_documento:
-            table_documento = table_documento.find_parent("table")
+        # --- 2. Extraer URL PDF Principal ---
+        btn_pdf = soup.find("a", class_="btn btn-primary")
+        if btn_pdf:
+            texto_boton = btn_pdf.get_text(strip=False)
+            if "Descargar archivo PDF" in texto_boton:
+                href = btn_pdf.get("href")
+                if href:
+                    # Usamos la función de normalización (actualizada para cubrir 'anterior')
+                    data["url_pdf_principal"] = normalizar_url_pdf(href, "principal")
 
-        if table_documento:
-            rows = table_documento.find_all("tr")
-            if len(rows) > 2:  # Necesitamos la fila en el índice 2
-                cols = rows[2].find_all("td")  # Obtener celdas de la TERCERA fila
-                if len(cols) > 0:
-                    # Nombre: (en cols[0])
-                    data["nombre_escrito"] = (
-                        cols[0].get_text(strip=True).replace("Nombre:", "").strip()
-                    )
+        # --- 3. Extraer Adjuntos ---
+        tds_adjuntos = soup.find_all("td", class_="alert-warning")
+        seen_urls = set()
 
-                if len(cols) > 1:
-                    # Código de Validación: (en cols[1])
-                    cod_tag = cols[1].find("strong")
-                    if cod_tag:
-                        data["codigo_validacion"] = (
-                            cod_tag.get_text(strip=True)
-                            .replace("Código de Validación:", "")
-                            .strip()
+        for td in tds_adjuntos:
+            link = td.find("a")
+            if link and link.get("href"):
+                href = link.get("href")
+                if "ver_adjunto_escrito.php" in href:
+                    full_url = normalizar_url_pdf(href, "adjunto")
+
+                    if full_url and full_url not in seen_urls:
+                        nombre_adjunto = link.get_text(strip=True)
+                        data["adjuntos"].append(
+                            {"nombre": nombre_adjunto, "url": full_url}
                         )
+                        seen_urls.add(full_url)
 
-        # --- 3. Extraer Texto de la Providencia (div#editor-container) ---
-        editor = soup.find(id="editor-container")
-        if editor:
-            text = editor.get_text(separator="\n", strip=True)
-            clean_lines = [line.strip() for line in text.splitlines() if line.strip()]
-            data["texto_providencia"] = "\n".join(clean_lines)
-        else:
-            data["texto_providencia"] = (
-                "ERROR: No se pudo encontrar el contenedor de texto."
-            )
-
-        # --- 4. Extraer Firmantes (Última tabla) ---
+        # --- 4. Extraer Firmantes ---
         table_firmantes = soup.find(
             "strong", string=re.compile(r"Firmado electrónicamente por")
         )
@@ -267,23 +307,20 @@ def parsear_pagina_documento(html_text):
             table_firmantes = table_firmantes.find_parent("table")
 
         if table_firmantes:
-            # Empezar a buscar desde la fila de títulos (Cargo, Apellido, Fecha)
             header_row = table_firmantes.find("td", string=re.compile(r"Cargo"))
             if header_row:
-                # Iterar sobre las filas hermanas que vienen *después* de la cabecera
                 for row in header_row.find_parent("tr").find_next_siblings("tr"):
                     cols = row.find_all("td")
                     if len(cols) == 3:
                         cargo = cols[0].get_text(strip=True)
                         nombre = cols[1].get_text(strip=True)
                         fecha = cols[2].get_text(strip=True)
-                        if cargo and nombre:  # Asegurarse de que no sea una fila vacía
+                        if cargo and nombre:
                             data["firmantes"].append(
                                 {"cargo": cargo, "nombre": nombre, "fecha": fecha}
                             )
 
     except Exception as e:
         print(f"   > !!! Error parseando HTML del documento: {e}")
-        data["texto_providencia"] = f"ERROR AL PARSEAR HTML: {e}"
 
     return data

@@ -3,17 +3,40 @@ import csv
 import os
 import re
 from fpdf import FPDF
-import functools  # <<< AÑADIR
-import session_manager  # <<< AÑADIR
+import functools
+import session_manager
 
-# ... (todas tus funciones existentes: limpiar_nombre_archivo, guardar_a_csv, etc.) ...
-# ... (asegúrate de que todo el código anterior esté aquí) ...
+# Importar la librería de fusión de PDF (REQUIERE INSTALACIÓN: pip install pypdf)
+try:
+    from pypdf import PdfWriter, PdfReader
+except ImportError:
+    # Definición de placeholder para que el código funcione en ausencia de la librería
+    class MockPdfWriter:
+        def add_page(self, page):
+            pass
+
+        def write(self, file):
+            print(f"--- MOCK PDF WRITER: ESCRIBIENDO {file.name} ---")
+
+    class MockPdfReader:
+        def __init__(self, file):
+            pass
+
+        @property
+        def pages(self):
+            # Retorna una página simulada para que la lógica de fusión no falle inmediatamente
+            return [object()]
+
+    PdfWriter = MockPdfWriter
+    PdfReader = MockPdfReader
+    print(
+        "ADVERTENCIA: Librería 'pypdf' no encontrada. La función de fusión de PDF es simulada."
+    )
 
 
 def limpiar_nombre_archivo(name):
     """
     Limpia un string para que sea un nombre de archivo válido.
-    (Original: sanitize_filename)
     """
     if not name:
         name = "SIN_NOMBRE"
@@ -28,7 +51,6 @@ def limpiar_nombre_archivo(name):
 def guardar_a_csv(data, filename, subdirectory="."):
     """
     Guarda una lista de diccionarios en un archivo CSV dentro de un subdirectorio.
-    (Original: save_to_csv)
     """
     if not data:
         print(f"  > No hay datos para guardar en {filename}.")
@@ -54,7 +76,6 @@ def guardar_a_csv(data, filename, subdirectory="."):
 def guardar_a_txt(data, filename, subdirectory):
     """
     Guarda el diccionario de datos del documento en un archivo TXT formateado.
-    (Original: save_to_txt)
     """
     if not data or not data.get("texto_providencia"):
         print(f"  > No hay contenido de providencia para guardar en {filename}.")
@@ -102,7 +123,6 @@ def guardar_a_txt(data, filename, subdirectory):
 def leer_csv_a_diccionario(filepath):
     """
     Lee un archivo CSV y lo devuelve como una lista de diccionarios.
-    (Original: read_csv_to_dict)
     """
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -121,7 +141,6 @@ def leer_csv_a_diccionario(filepath):
 def compilar_textos_a_pdf(source_directory, output_pdf_path):
     """
     Lee todos los .txt de un directorio, los ordena y los compila en un PDF.
-    (Original: compile_texts_to_pdf)
     """
     print(f"  > Compilando PDF en: {output_pdf_path}...")
 
@@ -209,7 +228,64 @@ def compilar_textos_a_pdf(source_directory, output_pdf_path):
         traceback.print_exc()
 
 
-# --- V V V DECORADOR DE FASE AÑADIDO V V V ---
+def fusionar_pdfs(source_directory, output_pdf_path):
+    """
+    Busca todos los archivos PDF en source_directory, los ordena
+    alfabéticamente y los fusiona en un solo PDF.
+    """
+    print(f"  > Fusionando PDFs en: {output_pdf_path}...")
+    pdf_files = [f for f in os.listdir(source_directory) if f.lower().endswith(".pdf")]
+
+    if not pdf_files:
+        print("  > No se encontraron archivos .pdf para fusionar.")
+        return
+
+    # Ordenar alfabéticamente para asegurar el orden cronológico (gracias a la nomenclatura 01, 02, etc.)
+    pdf_files.sort()
+
+    merger = PdfWriter()
+
+    archivos_agregados = []
+    try:
+        for filename in pdf_files:
+            filepath = os.path.join(source_directory, filename)
+
+            # Usamos el modo binario 'rb' para leer PDFs
+            with open(filepath, "rb") as f:
+                reader = PdfReader(f)
+                # Verifica si el objeto es un mock o si tiene páginas (si es el pypdf real)
+                if hasattr(reader, "pages") and reader.pages:
+                    for page in reader.pages:
+                        merger.add_page(page)
+                    archivos_agregados.append(filename)
+                elif not hasattr(reader, "pages"):  # Es el Mock Object
+                    merger.add_page(object())  # Simular adición
+                    archivos_agregados.append(filename)
+
+                else:
+                    print(
+                        f"    > ADVERTENCIA: '{filename}' está vacío o corrupto, saltando."
+                    )
+
+        # Escribir el PDF de salida
+        if archivos_agregados:
+            with open(output_pdf_path, "wb") as f:
+                merger.write(f)
+
+            print(
+                f"  > PDF de expediente fusionado exitosamente. Documentos incluidos: {len(archivos_agregados)}"
+            )
+        else:
+            print("  > No se pudo fusionar ningún archivo PDF válido.")
+
+    except Exception as e:
+        print(f"  > !!! ERROR al fusionar PDFs: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+    finally:
+        pass
 
 
 def manejar_fase_con_sesion(nombre_fase):

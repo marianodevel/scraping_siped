@@ -6,11 +6,31 @@ import config
 from bs4 import BeautifulSoup
 
 
+def descargar_archivo(session, url, ruta_destino):
+    """
+    Descarga un archivo binario desde una URL y lo guarda en la ruta especificada.
+    Retorna True si fue exitoso, False en caso contrario.
+    """
+    # CORRECCIÓN: Aseguramos que la URL no tenga espacios en blanco (visto en logs)
+    url = url.strip()
+    try:
+        # stream=True es importante para no cargar todo en memoria si es grande
+        with session.get(url, stream=True, timeout=30) as r:
+            r.raise_for_status()
+            with open(ruta_destino, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        return True
+    except Exception as e:
+        print(f"    > Error descargando archivo desde {url}: {e}")
+        return False
+
+
 def raspar_lista_expedientes(session):
     """
     Recorre todas las páginas de la lista de expedientes y devuelve una
     lista completa de todos los expedientes encontrados.
-    (Original: scrape_lista_expedientes)
     """
     all_expedientes_list = []
     current_inicio = 0
@@ -49,7 +69,6 @@ def raspar_lista_expedientes(session):
 def raspar_movimientos_de_expediente(session, expediente_dict):
     """
     Obtiene todos los movimientos para UN solo expediente.
-    (Original: scrape_movimientos_de_expediente)
     """
     link_contenedor = expediente_dict.get("link_detalle")
     expediente_nro = expediente_dict.get("expediente")
@@ -129,8 +148,7 @@ def raspar_movimientos_de_expediente(session, expediente_dict):
 
 def raspar_contenido_documento(session, document_url):
     """
-    Visita la URL de un escrito y extrae su texto principal.
-    (Original: scrape_document_content)
+    Visita la URL de un escrito y extrae enlaces a PDFs y Adjuntos.
     """
     if not document_url or not document_url.strip():
         print("   > ADVERTENCIA: No se proporcionó URL para el documento.")
