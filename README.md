@@ -71,7 +71,38 @@ Se te presentará una pantalla de Inicio de Sesión.
 Ingresa tu Usuario (DNI/Cuit) y Contraseña de la Intranet del Poder Judicial.
 Una vez logueado, podrás iniciar las fases de scraping desde el panel de control.
 
-### 5. Estructura del Proyecto
+### 5. Ejecución: Modos Alternativos (Scripts CLI)
+Si prefieres no utilizar la interfaz web o necesitas depurar el proceso, puedes utilizar los scripts ubicados en la carpeta script/.
+
+#### Opción A: Script Todo-en-Uno (Legacy)
+El archivo siped3.py es un script independiente que realiza todo el proceso de extracción de forma lineal. Ubicación: script/siped3.py
+
+```
+python script/siped3.py
+```
+
+#### Opción B: Ejecución Modular por Pasos
+Si deseas ejecutar el proceso fase por fase manualmente, utiliza los scripts numerados. Nota importante: Dado que estos scripts dependen de archivos en la carpeta raíz (config.py, utils.py, etc.), deben ejecutarse como módulos desde la raíz del proyecto usando python -m.
+
+##### Fase 1: Obtener Lista Maestra Genera el archivo lista_expedientes.csv.
+
+``` 
+python -m script.1_get_lista_expedientes
+```
+
+##### Fase 2: Obtener Movimientos Lee la lista maestra y descarga los movimientos en CSV individuales.
+
+```
+python -m script.2_get_movimientos
+```
+
+##### Fase 3: Descargar Textos y Generar PDF Lee los CSV de movimientos, descarga el contenido de los escritos y compila un PDF por expediente.
+
+```
+python -m script.3_get_movimientos_texto
+```
+
+### 6. Estructura del Proyecto
 app.py: Servidor web Flask y rutas.
 
 tasks.py: Definición de tareas asíncronas para Celery.
@@ -82,4 +113,4 @@ templates/: Interfaz de usuario (HTML).
 
 logs/: Archivos de registro de actividad.
 
-### 6. Licencia
+### 7. Licencia
