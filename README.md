@@ -59,7 +59,9 @@ celery -A tasks.celery_app worker --loglevel=info
 ### 3. Iniciar la Aplicación Web (Flask)
 En otra terminal (con el entorno virtual activado), inicia el servidor web:
 
-```python app.py```
+```bash
+python app.py
+```
 
 
 ### 4. Uso
@@ -77,7 +79,7 @@ Si prefieres no utilizar la interfaz web o necesitas depurar el proceso, puedes 
 #### Opción A: Script Todo-en-Uno (Legacy)
 El archivo siped3.py es un script independiente que realiza todo el proceso de extracción de forma lineal. Ubicación: script/siped3.py
 
-```
+```bash
 python script/siped3.py
 ```
 
@@ -86,19 +88,19 @@ Si deseas ejecutar el proceso fase por fase manualmente, utiliza los scripts num
 
 ##### Fase 1: Obtener Lista Maestra Genera el archivo lista_expedientes.csv.
 
-``` 
+```bash 
 python -m script.1_get_lista_expedientes
 ```
 
 ##### Fase 2: Obtener Movimientos Lee la lista maestra y descarga los movimientos en CSV individuales.
 
-```
+```bash
 python -m script.2_get_movimientos
 ```
 
 ##### Fase 3: Descargar Textos y Generar PDF Lee los CSV de movimientos, descarga el contenido de los escritos y compila un PDF por expediente.
 
-```
+```bash
 python -m script.3_get_movimientos_texto
 ```
 
