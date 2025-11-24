@@ -5,11 +5,6 @@ from dotenv import load_dotenv
 # Cargar variables de entorno desde .env
 load_dotenv()
 
-# --- Credenciales ELIMINADAS ---
-# Las credenciales ya no se leen de aquí.
-# USUARIO = os.getenv("USUARIO_INTRANET")
-# CLAVE = os.getenv("CLAVE_INTRANET")
-
 # --- Constantes del Sitio ---
 BASE_URL = "https://intranet.jussantacruz.gob.ar"
 LOGIN_URL = f"{BASE_URL}/servicios/controli2.php"
