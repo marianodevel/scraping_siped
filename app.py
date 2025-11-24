@@ -22,110 +22,11 @@ from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
 
 
-# ==========================================================
-# ===== MODO TESTING (Simulaciones) =====
-# ==========================================================
-if os.environ.get("FLASK_ENV") == "testing":
-    print("=" * 50)
-    print("¡¡¡ATENCIÓN: SERVIDOR EN MODO DE PRUEBA!!!")
-    print("=" * 50)
-
-    class MockSessionManager:
-        def autenticar_en_siped(self, username, password):
-            print(f"AUTENTICACIÓN SIMULADA para {username}...")
-            if password in ["testpass", "pass", "test_password"]:
-                return {"siped_cookies": "mock-cookie-para-" + username}
-            return None
-
-    session_manager = MockSessionManager()
-
-    MOCK_TASK_STATES = {
-        "fase_1": {"estado": "IDLE", "resultado": "En espera (Mock)"},
-        "fase_2": {"estado": "IDLE", "resultado": "En espera (Mock)"},
-        "fase_3": {"estado": "IDLE", "resultado": "En espera (Mock)"},
-    }
-
-    class MockGestorTareas:
-        def obtener_estado_tarea(self, task_id, nombre_fase):
-            return MOCK_TASK_STATES.get(
-                nombre_fase, {"estado": "FAILURE", "resultado": "Fase desconocida"}
-            )
-
-        def registrar_tarea_iniciada(self, nombre_fase, tarea):
-            MOCK_TASK_STATES[nombre_fase] = {
-                "estado": "STARTED",
-                "resultado": "En cola (Mock)...",
-            }
-
-        def obtener_id_tarea(self, nombre_fase):
-            return f"mock-id-{nombre_fase}"
-
-        def resetear_id_tarea(self, nombre_fase):
-            MOCK_TASK_STATES[nombre_fase] = {
-                "estado": "IDLE",
-                "resultado": "En espera (Mock)",
-            }
-
-    gestor_tareas = MockGestorTareas()
-
-    class MockTask:
-        def __init__(self, task_id):
-            self.id = task_id
-
-        @classmethod
-        def delay(cls, *args, **kwargs):
-            task_id = f"mock-celery-id-{cls.name}"
-            return MockTask(task_id)
-
-    class MockFase1(MockTask):
-        name = "fase_1"
-
-    class MockFase2(MockTask):
-        name = "fase_2"
-
-    class MockFase3(MockTask):
-        name = "fase_3"
-
-    fase_1_lista_task = MockFase1
-    fase_2_movimientos_task = MockFase2
-    fase_3_documentos_task = MockFase3
-
-
 # --- Configuración de Flask ---
 app = Flask(__name__)
 app.secret_key = os.environ.get(
     "FLASK_SECRET_KEY", "desarrollo-secreto-cambiar-en-prod-MUY-SECRETO"
 )
-
-
-# ========================================================
-# ===== ENDPOINTS DE CONTROL PARA TESTS =====
-# ========================================================
-if os.environ.get("FLASK_ENV") == "testing":
-
-    @app.route("/_test/set_state", methods=["POST"])
-    def set_mock_state():
-        data = request.json
-        fase = data.get("fase")
-        estado = data.get("estado")
-        resultado = data.get("resultado")
-
-        if fase in MOCK_TASK_STATES:
-            MOCK_TASK_STATES[fase] = {"estado": estado, "resultado": resultado}
-            return jsonify(
-                {"status": "success", "fase": fase, "new_state": MOCK_TASK_STATES[fase]}
-            )
-        return jsonify({"status": "error", "message": "Fase no encontrada"}), 404
-
-    @app.route("/_test/reset_states", methods=["POST"])
-    def reset_mock_states():
-        global MOCK_TASK_STATES
-        MOCK_TASK_STATES = {
-            "fase_1": {"estado": "IDLE", "resultado": "En espera (Mock)"},
-            "fase_2": {"estado": "IDLE", "resultado": "En espera (Mock)"},
-            "fase_3": {"estado": "IDLE", "resultado": "En espera (Mock)"},
-        }
-        return jsonify({"status": "success", "states": MOCK_TASK_STATES})
 
 
 # --- Definición del Formulario de Login ---
@@ -149,7 +50,6 @@ def login_required(f):
 
 # --- Rutas de Autenticación ---
 
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if "siped_cookies" in session:
@@ -160,6 +60,7 @@ def login():
         username = form.username.data
         password = form.password.data
 
+        # Autenticación real usando session_manager.py
         cookies_dict = session_manager.autenticar_en_siped(username, password)
 
         if cookies_dict:
@@ -184,7 +85,6 @@ def logout():
 
 # --- Rutas de la Aplicación (Protegidas) ---
 
-
 @app.route("/fragmento/mensajes")
 def fragmento_mensajes():
     return render_template("_fragmento_mensajes.html")
@@ -195,6 +95,7 @@ def fragmento_mensajes():
 def indice():
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
 
+    # Obtener estado real de las tareas
     estados_tareas = {
         "fase_1": gestor_tareas.obtener_estado_tarea(
             gestor_tareas.obtener_id_tarea("fase_1"), "fase_1"
@@ -231,6 +132,7 @@ def iniciar_fase(nombre_fase):
     estado_actual = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
     )
+    
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
         flash(
             f"La Fase {nombre_fase.split('_')[1]} ya está en curso (Estado: {estado_actual['estado']}).",
@@ -239,6 +141,8 @@ def iniciar_fase(nombre_fase):
         return render_template("_fragmento_mensajes.html"), 200
 
     cookies_del_usuario = session["siped_cookies"]
+    
+    # Lanzar tarea real de Celery
     tarea = mapa_tareas[nombre_fase].delay(cookies=cookies_del_usuario)
 
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
@@ -289,9 +193,4 @@ def verificar_estado_tarea(nombre_fase):
 @login_required
 def descargar_archivo(nombre_archivo):
     return send_from_directory(
-        directory=config.DOCUMENTOS_OUTPUT_DIR, path=nombre_archivo, as_attachment=True
-    )
-
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5001)
+        directory=
