@@ -1,26 +1,21 @@
-# fases/fase_2.py
 import os
 import scraper_tasks
 import utils
 import config
-from utils import manejar_fase_con_sesion  # <<< CAMBIO
-
-# <<< 'SessionManager' ya no se importa >>>
+from utils import manejar_fase_con_sesion
 
 
 @manejar_fase_con_sesion("FASE 2: OBTENER MOVIMIENTOS")
-def ejecutar_fase_2_movimientos(session):  # <<< CAMBIO: recibe 'session'
+def ejecutar_fase_2_movimientos(session):
     """
     FASE 2: Descarga los movimientos para CADA expediente de la lista maestra
     y los guarda en archivos CSV individuales.
     La 'session' es inyectada por el decorador.
     """
-    # <<< CAMBIO: El try/except/SessionManager exterior ha desaparecido >>>
-
     expedientes_a_procesar = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
     if not expedientes_a_procesar:
         mensaje = f"Error: No se encontró el archivo maestro '{config.LISTA_EXPEDIENTES_CSV}'. Ejecute Fase 1 primero."
-        print(mensaje)  # Mantenemos prints internos
+        print(mensaje)
         return mensaje
 
     total_expedientes = len(expedientes_a_procesar)
@@ -32,19 +27,15 @@ def ejecutar_fase_2_movimientos(session):  # <<< CAMBIO: recibe 'session'
         nro_expediente = expediente["expediente"]
         print(f"\nProcesando {i + 1}/{total_expedientes}: {nro_expediente}")
 
-        # Crear nombre de archivo
         nro = utils.limpiar_nombre_archivo(expediente.get("expediente"))
         caratula = utils.limpiar_nombre_archivo(expediente.get("caratula"))
         nombre_archivo = f"{nro} - {caratula}.csv"
 
-        # Saltar si ya existe
         ruta_archivo = os.path.join(config.MOVIMIENTOS_OUTPUT_DIR, nombre_archivo)
         if os.path.exists(ruta_archivo):
             print(f"  > Ya existe '{nombre_archivo}', saltando.")
             continue
 
-        # Este try/except es parte de la lógica (ignora un expediente
-        # fallido) y DEBE MANTENERSE.
         try:
             movimientos = scraper_tasks.raspar_movimientos_de_expediente(
                 session, expediente
@@ -63,7 +54,7 @@ def ejecutar_fase_2_movimientos(session):  # <<< CAMBIO: recibe 'session'
 
         except Exception as e:
             print(f"  > !!! ERROR al procesar {expediente['expediente']}: {e}")
-            pass  # Continuar con el siguiente expediente
+            pass
 
     mensaje = f"Proceso de movimientos completado. Total de movimientos descargados (nuevos): {contador_movimientos}"
-    return mensaje  # <<< CAMBIO: Solo devuelve el mensaje
+    return mensaje

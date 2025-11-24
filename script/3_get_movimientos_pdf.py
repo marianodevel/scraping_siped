@@ -2,7 +2,7 @@ import os
 import sys
 import getpass
 
-# 1. Configuración del Path: Permitir importar módulos de la raíz (config, utils, fases, session_manager)
+# 1. Configuración del Path: Permitir importar módulos de la raíz
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import session_manager
@@ -10,10 +10,8 @@ from fases.fase_3 import ejecutar_fase_3_documentos
 
 
 def main():
-    print("\n=== SCRIPT CLI: FASE 3 (DESCARGA Y CONSOLIDACIÓN DE PDFs) ===")
-    print(
-        "Nota: Se requiere autenticación manual ya que no se usan credenciales guardadas.\n"
-    )
+    print("\n=== CLI FASE 3: DESCARGA Y CONSOLIDACIÓN DE PDFs ===")
+    print("Nota: Se requiere autenticación manual.\n")
 
     # 2. Autenticación Interactiva (Sin .env)
     usuario = input("Ingrese Usuario (Cuil/DNI): ").strip()
@@ -25,17 +23,17 @@ def main():
 
     print(f"\nAutenticando a {usuario} en SIPED...")
 
-    # 3. Obtener Cookies
+    # 3. Obtener Cookies usando las funciones de session_manager
     cookies = session_manager.autenticar_en_siped(usuario, clave)
 
     if not cookies:
         print("❌ Error: Credenciales inválidas o fallo en la conexión.")
         return
 
-    print("✅ Autenticación exitosa.\n")
+    print("✅ Autenticación exitosa. Iniciando descarga...\n")
 
-    # 4. Ejecutar la lógica centralizada (Reutilizando fases/fase_3.py)
-    # El decorador @manejar_fase_con_sesion en fase_3 se encarga de crear la sesión con estas cookies.
+    # 4. Ejecutar la lógica centralizada
+    # El decorador en fase_3 se encarga de crear la sesión con estas cookies.
     try:
         ejecutar_fase_3_documentos(cookies=cookies)
 

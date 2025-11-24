@@ -1,11 +1,8 @@
-# tasks.py
 import os
 from celery import Celery
-from scraper import (
-    ejecutar_fase_1_lista,
-    ejecutar_fase_2_movimientos,
-    ejecutar_fase_3_documentos,
-)
+from fases.fase_1 import ejecutar_fase_1_lista
+from fases.fase_2 import ejecutar_fase_2_movimientos
+from fases.fase_3 import ejecutar_fase_3_documentos
 
 # --- Configuración de Celery ---
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -21,7 +18,6 @@ def fase_1_lista_task(self, cookies):
     Tarea de Celery para la Fase 1: Obtener lista maestra.
     Acepta 'cookies' del usuario.
     """
-    # Pasamos las cookies a la función de ejecución
     return ejecutar_fase_1_lista(cookies=cookies)
 
 

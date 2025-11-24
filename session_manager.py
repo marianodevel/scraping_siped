@@ -1,10 +1,7 @@
-# session_manager.py
 import requests
 import config
 import parsers
 from requests.utils import dict_from_cookiejar, cookiejar_from_dict
-
-# IMPORTANTE: Ya no es una clase. Son funciones.
 
 
 def autenticar_en_siped(usuario, clave):
@@ -62,7 +59,6 @@ def autenticar_en_siped(usuario, clave):
 
         print(f"¡Sesión para {usuario} autenticada y lista!")
 
-        # ÉXITO: Devolvemos las cookies como un diccionario
         return dict_from_cookiejar(session.cookies)
 
     except requests.exceptions.RequestException as e:
@@ -82,7 +78,6 @@ def crear_sesion_con_cookies(cookies_dict):
     session.headers.update(config.BROWSER_HEADERS)
 
     if cookies_dict:
-        # Cargar las cookies en la nueva sesión
         session.cookies = cookiejar_from_dict(cookies_dict)
 
     return session

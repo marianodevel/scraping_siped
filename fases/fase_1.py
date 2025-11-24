@@ -1,10 +1,7 @@
-# fases/fase_1.py
 import scraper_tasks
 import utils
 import config
-from utils import manejar_fase_con_sesion  # <<< Importar decorador
-
-# <<< 'os' y 'SessionManager' ya no se importan aquí >>>
+from utils import manejar_fase_con_sesion
 
 
 @manejar_fase_con_sesion("FASE 1: OBTENER LISTA DE EXPEDIENTES")
@@ -12,10 +9,7 @@ def ejecutar_fase_1_lista(session):
     """
     FASE 1: Obtiene la lista maestra de expedientes y la guarda en un CSV.
     La 'session' es inyectada por el decorador 'manejar_fase_con_sesion'.
-    El decorador recibe las 'cookies' desde la tarea de Celery.
     """
-    # <<< Todo el try/except y la creación de sesión desaparecen >>>
-
     lista_expedientes = scraper_tasks.raspar_lista_expedientes(session)
 
     if lista_expedientes:

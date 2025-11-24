@@ -1,49 +1,59 @@
-# 2_get_movimientos.py
 import os
-from session_manager import SessionManager
+import sys
+import getpass
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import session_manager
 import scraper_tasks
 import utils
 import config
 
 
 def main_movimientos():
-    print("--- INICIANDO FASE 2: OBTENER MOVIMIENTOS ---")
+    print("--- CLI FASE 2: OBTENER MOVIMIENTOS ---")
 
-    expedientes_a_procesar = utils.read_csv_to_dict(config.LISTA_EXPEDIENTES_CSV)
+    expedientes_a_procesar = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
     if not expedientes_a_procesar:
+        print(
+            f"❌ No se encontró '{config.LISTA_EXPEDIENTES_CSV}'. Ejecute Fase 1 primero."
+        )
         return
 
-    print(f"Se encontraron {len(expedientes_a_procesar)} expedientes para procesar.")
+    print(f"Se procesarán {len(expedientes_a_procesar)} expedientes.")
+
+    usuario = input("Ingrese Usuario (Cuil/DNI): ").strip()
+    clave = getpass.getpass("Ingrese Contraseña: ").strip()
+
+    cookies = session_manager.autenticar_en_siped(usuario, clave)
+    if not cookies:
+        print("❌ Error de autenticación.")
+        return
 
     try:
-        # Iniciamos sesión UNA SOLA VEZ al principio
-        manager = SessionManager()
-        session = manager.get_session()
+        session = session_manager.crear_sesion_con_cookies(cookies)
 
         for i, expediente in enumerate(expedientes_a_procesar):
             print(
                 f"\nProcesando {i + 1}/{len(expedientes_a_procesar)}: {expediente['expediente']}"
             )
 
-            # Crear nombre de archivo
-            nro = utils.sanitize_filename(expediente.get("expediente"))
-            caratula = utils.sanitize_filename(expediente.get("caratula"))
+            nro = utils.limpiar_nombre_archivo(expediente.get("expediente"))
+            caratula = utils.limpiar_nombre_archivo(expediente.get("caratula"))
             filename = f"{nro} - {caratula}.csv"
-
-            # (Mejora): Saltar si ya existe
             filepath = os.path.join(config.MOVIMIENTOS_OUTPUT_DIR, filename)
+
             if os.path.exists(filepath):
-                print(f"  > Ya existe '{filename}', saltando.")
+                print(f"  > Ya existe, saltando.")
                 continue
 
             try:
-                # Scrapear movimientos
-                movements = scraper_tasks.scrape_movimientos_de_expediente(
+                movements = scraper_tasks.raspar_movimientos_de_expediente(
                     session, expediente
                 )
 
                 if movements:
-                    utils.save_to_csv(
+                    utils.guardar_a_csv(
                         movements, filename, subdirectory=config.MOVIMIENTOS_OUTPUT_DIR
                     )
                     print(f"  > Guardados {len(movements)} movimientos.")
@@ -51,13 +61,10 @@ def main_movimientos():
                     print("  > No se encontraron movimientos.")
 
             except Exception as e:
-                # Si falla un expediente, lo registramos y continuamos con el siguiente
                 print(f"  > !!! ERROR al procesar {expediente['expediente']}: {e}")
-                # Opcional: guardar este error en un log
-                pass
 
     except Exception as e:
-        print(f"Error fatal durante la Fase 2: {e}")
+        print(f"❌ Error fatal durante la Fase 2: {e}")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ celery
 redis
 requests
 beautifulsoup4
-python-dotenv
 fpdf2
 Flask-Login
 Flask-WTF
