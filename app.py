@@ -21,7 +21,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
 
-
 # --- Configuración de Flask ---
 app = Flask(__name__)
 app.secret_key = os.environ.get(
@@ -50,6 +49,7 @@ def login_required(f):
 
 # --- Rutas de Autenticación ---
 
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if "siped_cookies" in session:
@@ -60,7 +60,6 @@ def login():
         username = form.username.data
         password = form.password.data
 
-        # Autenticación real usando session_manager.py
         cookies_dict = session_manager.autenticar_en_siped(username, password)
 
         if cookies_dict:
@@ -85,6 +84,7 @@ def logout():
 
 # --- Rutas de la Aplicación (Protegidas) ---
 
+
 @app.route("/fragmento/mensajes")
 def fragmento_mensajes():
     return render_template("_fragmento_mensajes.html")
@@ -95,7 +95,7 @@ def fragmento_mensajes():
 def indice():
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
 
-    # Obtener estado real de las tareas
+    # Consultamos el estado real al gestor de tareas
     estados_tareas = {
         "fase_1": gestor_tareas.obtener_estado_tarea(
             gestor_tareas.obtener_id_tarea("fase_1"), "fase_1"
@@ -132,7 +132,6 @@ def iniciar_fase(nombre_fase):
     estado_actual = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
     )
-    
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
         flash(
             f"La Fase {nombre_fase.split('_')[1]} ya está en curso (Estado: {estado_actual['estado']}).",
@@ -141,8 +140,8 @@ def iniciar_fase(nombre_fase):
         return render_template("_fragmento_mensajes.html"), 200
 
     cookies_del_usuario = session["siped_cookies"]
-    
-    # Lanzar tarea real de Celery
+
+    # Lanzamos la tarea de Celery real (se mockeará en los tests)
     tarea = mapa_tareas[nombre_fase].delay(cookies=cookies_del_usuario)
 
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
@@ -193,4 +192,9 @@ def verificar_estado_tarea(nombre_fase):
 @login_required
 def descargar_archivo(nombre_archivo):
     return send_from_directory(
-        directory=
+        directory=config.DOCUMENTOS_OUTPUT_DIR, path=nombre_archivo, as_attachment=True
+    )
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5001)
