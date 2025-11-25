@@ -48,19 +48,19 @@ Si prefieres ejecutar el proceso fase por fase desde la terminal (sin interfaz w
 * **Fase 1: Obtener Lista Maestra**
     Descarga la lista de expedientes a `expedientes_completos.csv`.
     ```bash
-    python -m script.1_get_lista_expedientes
+    python -m script.cli_lista_expedientes
     ```
 
 * **Fase 2: Obtener Movimientos**
     Lee el CSV maestro y descarga los movimientos individuales.
     ```bash
-    python -m script.2_get_movimientos
+    python -m script.cli_movimientos
     ```
 
 * **Fase 3: Descargar y Consolidar PDFs**
     Descarga los documentos de cada movimiento y genera un PDF unificado por expediente.
     ```bash
-    python -m script.3_get_movimientos_pdf
+    python -m script.cli_movimientos_pdf
     ```
 
 ## Estructura de Datos
