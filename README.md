@@ -13,7 +13,7 @@ Herramienta automatizada para la extracción y gestión de expedientes del siste
 
 1.  **Clonar y preparar entorno:**
     ```bash
-    git clone <url-del-repositorio>
+    git clone [https://github.com/marianodevel/scraping_siped.git](https://github.com/marianodevel/scraping_siped.git)
     cd scraping_siped
     python -m venv .venv
     source .venv/bin/activate  # En Windows: .venv\Scripts\activate
