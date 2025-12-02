@@ -56,6 +56,7 @@
             border-bottom: 1px solid var(--border-color);
             margin-bottom: 1rem;
         }
+        select { width: 100%; margin-bottom: 10px; }
     </style>
 </head>
 <body hx-headers='{"Cache-Control": "no-cache"}'>
@@ -68,7 +69,6 @@
             Cerrar Sesión
         </a>
     </header>
-
 
     <h1>Scraper de Expedientes</h1>
     <p>La aplicación utiliza Celery (Worker) para ejecutar las fases en segundo plano.</p>
@@ -83,8 +83,46 @@
         {% endwith %}
     </div>
 
+    <h2>Herramientas Rápidas</h2>
 
-    <h2>Control de Fases</h2>
+    <div class="fase-container" id="fase_unico-container" style="border-color: #007bff;">
+        <div class="fase-control">
+            <h3>Descarga Individual (Completa)</h3>
+        </div>
+        <p>Seleccione un expediente para actualizar movimientos y descargar su PDF consolidado inmediatamente.</p>
+
+        <form hx-post="{{ url_for('iniciar_descarga_unico') }}" 
+              hx-target="#flash-messages" 
+              hx-swap="innerHTML">
+            
+            {% if expedientes_disponibles %}
+                <select name="expediente_seleccionado" required>
+                    <option value="" disabled selected>-- Seleccione un Expediente --</option>
+                    {% for exp in expedientes_disponibles %}
+                        <option value="{{ exp.expediente }}">{{ exp.expediente }} - {{ exp.caratula }}</option>
+                    {% endfor %}
+                </select>
+            {% else %}
+                <p><em>No hay lista de expedientes cargada. Ejecute la Fase 1 primero.</em></p>
+            {% endif %}
+
+            <div id="estado-resultado-fase_unico" 
+                 hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_unico') }}" 
+                 hx-trigger="load, every 3s" 
+                 hx-swap="innerHTML">
+                 {% with estado=estados_tareas['fase_unico'] %}
+                    {% include '_fragmento_estado.html' with context %}
+                 {% endwith %}
+            </div>
+
+            <button type="submit" data-fase="fase_unico"
+                {% if not expedientes_disponibles or estados_tareas['fase_unico'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                Procesar Expediente
+            </button>
+        </form>
+    </div>
+
+    <h2>Fases Masivas</h2>
     
     {% set fases = [
         ('fase_1', 'Obtener Lista Maestra (CSV)', 'Descarga la lista completa de expedientes y guarda el archivo maestro <code>expedientes_completos.csv</code>.'),
@@ -105,7 +143,7 @@
              hx-swap="innerHTML">
             
              {% with estado=estados_tareas[id_fase] %}
-                {% include '_fragmento_estado.html' %}
+                {% include '_fragmento_estado.html' with context %}
              {% endwith %}
              </div>
 
@@ -119,7 +157,6 @@
         </div>
     {% endfor %}
 
-
     <h2>PDFs Compilados</h2>
     <div class="file-list" id="pdf-list-container"
          hx-get="{{ url_for('fragmento_pdfs') }}"
@@ -129,36 +166,30 @@
         {% with archivos_pdf=archivos_pdf %}
             {% include '_fragmento_pdfs.html' %}
         {% endwith %}
-        </div>
+    </div>
 
     <script>
         const fasesFinalizadas = {};
 
-        // 1. ANTES del swap
+        // Escucha eventos antes del intercambio de contenido HTMX
         document.body.addEventListener('htmx:beforeSwap', function(evt) {
             if (!evt.target.id || !evt.target.id.startsWith('estado-resultado-')) {
                 return;
             }
-            
             const faseId = evt.target.id.replace('estado-resultado-', '');
-
             if (fasesFinalizadas[faseId]) {
                 evt.preventDefault(); 
                 evt.target.removeAttribute('hx-trigger');
             }
         });
 
-        // 2. DESPUÉS del swap
+        // Escucha eventos después del intercambio de contenido HTMX
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             if (!evt.target.id || !evt.target.id.startsWith('estado-resultado-')) {
                 return;
             }
-            
             const faseId = evt.target.id.replace('estado-resultado-', '');
-            
-            if (fasesFinalizadas[faseId]) {
-                return;
-            }
+            if (fasesFinalizadas[faseId]) return;
 
             const badge = evt.target.querySelector('.status-badge');
             if (!badge) return;
@@ -172,11 +203,10 @@
                 fasesFinalizadas[faseId] = true;
                 document.body.dispatchEvent(new Event('tareaFinalizada'));
                 button.disabled = false;
-
             } else if (['PENDING', 'STARTED', 'RETRY'].includes(status)) {
                 button.disabled = true;
             }
         });
     </script>
-    </body>
+</body>
 </html>

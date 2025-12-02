@@ -1,3 +1,4 @@
+# app.py
 from flask import (
     Flask,
     render_template,
@@ -11,10 +12,16 @@ from flask import (
 )
 import os
 import config
-from tasks import fase_1_lista_task, fase_2_movimientos_task, fase_3_documentos_task
+from tasks import (
+    fase_1_lista_task,
+    fase_2_movimientos_task,
+    fase_3_documentos_task,
+    fase_unico_task,
+)  # Importamos la nueva tarea
 import gestor_tareas
 import gestor_almacenamiento
 import session_manager
+import utils  # Necesario para leer el CSV
 from functools import wraps
 
 from flask_wtf import FlaskForm
@@ -95,6 +102,11 @@ def fragmento_mensajes():
 def indice():
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
 
+    # Cargamos la lista de expedientes para el dropdown (si existe el CSV)
+    expedientes_disponibles = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
+    if not expedientes_disponibles:
+        expedientes_disponibles = []
+
     # Consultamos el estado real al gestor de tareas
     estados_tareas = {
         "fase_1": gestor_tareas.obtener_estado_tarea(
@@ -106,6 +118,9 @@ def indice():
         "fase_3": gestor_tareas.obtener_estado_tarea(
             gestor_tareas.obtener_id_tarea("fase_3"), "fase_3"
         ),
+        "fase_unico": gestor_tareas.obtener_estado_tarea(
+            gestor_tareas.obtener_id_tarea("fase_unico"), "fase_unico"
+        ),
     }
 
     return render_template(
@@ -113,6 +128,7 @@ def indice():
         archivos_pdf=lista_pdf,
         estados_tareas=estados_tareas,
         username=session.get("username"),
+        expedientes_disponibles=expedientes_disponibles,
     )
 
 
@@ -123,10 +139,11 @@ def iniciar_fase(nombre_fase):
         "fase_1": fase_1_lista_task,
         "fase_2": fase_2_movimientos_task,
         "fase_3": fase_3_documentos_task,
+        # fase_unico se maneja en una ruta especial porque requiere argumentos
     }
 
     if nombre_fase not in mapa_tareas:
-        flash(f"Fase '{nombre_fase}' no reconocida.", "error")
+        flash(f"Fase '{nombre_fase}' no reconocida o requiere parámetros.", "error")
         return render_template("_fragmento_mensajes.html"), 400
 
     estado_actual = gestor_tareas.obtener_estado_tarea(
@@ -134,18 +151,48 @@ def iniciar_fase(nombre_fase):
     )
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
         flash(
-            f"La Fase {nombre_fase.split('_')[1]} ya está en curso (Estado: {estado_actual['estado']}).",
+            f"La Fase {nombre_fase} ya está en curso.",
             "warning",
         )
         return render_template("_fragmento_mensajes.html"), 200
 
     cookies_del_usuario = session["siped_cookies"]
-
-    # Lanzamos la tarea de Celery real (se mockeará en los tests)
     tarea = mapa_tareas[nombre_fase].delay(cookies=cookies_del_usuario)
+    gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
+
+    flash(f"Fase {nombre_fase.split('_')[1]} iniciada con ID: {tarea.id}", "success")
+    return render_template("_fragmento_mensajes.html"), 200
+
+
+@app.route("/iniciar_descarga_unico", methods=["POST"])
+@login_required
+def iniciar_descarga_unico():
+    """
+    Ruta específica para la descarga de un solo expediente, recibe el ID del formulario.
+    """
+    nro_expediente = request.form.get("expediente_seleccionado")
+    nombre_fase = "fase_unico"
+
+    if not nro_expediente:
+        flash("Debe seleccionar un expediente.", "warning")
+        return render_template("_fragmento_mensajes.html"), 400
+
+    estado_actual = gestor_tareas.obtener_estado_tarea(
+        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
+    )
+    if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
+        flash(f"Ya hay una descarga individual en curso.", "warning")
+        return render_template("_fragmento_mensajes.html"), 200
+
+    cookies_del_usuario = session["siped_cookies"]
+
+    # Lanzamos la tarea pasando el argumento extra
+    tarea = fase_unico_task.delay(
+        cookies=cookies_del_usuario, nro_expediente=nro_expediente
+    )
 
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
-    flash(f"Fase {nombre_fase.split('_')[1]} iniciada con ID: {tarea.id}", "success")
+    flash(f"Procesando expediente {nro_expediente}...", "success")
     return render_template("_fragmento_mensajes.html"), 200
 
 
@@ -171,21 +218,6 @@ def fragmento_estado(nombre_fase):
 def fragmento_pdfs():
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
     return render_template("_fragmento_pdfs.html", archivos_pdf=lista_pdf)
-
-
-@app.route("/estado_tarea/<nombre_fase>")
-@login_required
-def verificar_estado_tarea(nombre_fase):
-    estado = gestor_tareas.obtener_estado_tarea(
-        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
-    )
-    return jsonify(
-        {
-            "state": estado["estado"],
-            "result": estado["resultado"],
-            "refresh": estado.get("recargar", False),
-        }
-    )
 
 
 @app.route("/descargar/<nombre_archivo>")
