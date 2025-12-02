@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fases.fase_1 import ejecutar_fase_1_lista
 from fases.fase_2 import ejecutar_fase_2_movimientos
 from fases.fase_3 import ejecutar_fase_3_documentos
+from fases.fase_unico import ejecutar_fase_unico  # Nueva importación
 import config
 
 # --- Tests para FASE 1 (Lista) ---
@@ -88,7 +89,7 @@ def test_fase_2_sin_csv_maestro(mock_crear_sesion, mock_utils):
 @patch("fases.fase_3.scraper_tasks")
 @patch("utils.session_manager.crear_sesion_con_cookies")
 @patch("fases.fase_3.os.makedirs")
-@patch("fases.fase_3.os.listdir")  # <--- NUEVO: Mockeamos listdir
+@patch("fases.fase_3.os.listdir")
 def test_fase_3_flujo_completo(
     mock_listdir, mock_makedirs, mock_crear_sesion, mock_tasks, mock_utils
 ):
@@ -111,7 +112,6 @@ def test_fase_3_flujo_completo(
     }
 
     # 3. SETUP LISTDIR: Simulamos que en la carpeta ya está el PDF descargado
-    # Esto es necesario porque el código lista archivos para saber qué fusionar.
     mock_listdir.return_value = ["01_principal.pdf"]
 
     # 4. Simular que NO existen los PDFs (para disparar descarga) ni el consolidado (para disparar fusión)
@@ -126,3 +126,59 @@ def test_fase_3_flujo_completo(
         mock_utils.fusionar_pdfs.assert_called()
 
         assert "completado" in mensaje
+
+
+# --- Tests para FASE ÚNICA (Nuevo) ---
+
+
+@patch("fases.fase_unico.utils")
+@patch("fases.fase_unico.scraper_tasks")
+@patch("utils.session_manager.crear_sesion_con_cookies")
+@patch("fases.fase_unico.os.makedirs")
+@patch("fases.fase_unico.os.path.exists")
+@patch("fases.fase_unico.os.remove")
+def test_fase_unico_exito(
+    mock_remove,
+    mock_exists,
+    mock_makedirs,
+    mock_crear_sesion,
+    mock_tasks,
+    mock_utils,
+):
+    """
+    Verifica el flujo de procesar un solo expediente seleccionado.
+    """
+    mock_crear_sesion.return_value = MagicMock()
+
+    # 1. Mock de Lista Maestra
+    mock_utils.leer_csv_a_diccionario.return_value = [
+        {"expediente": "100/23", "caratula": "TEST_UNICO"}
+    ]
+    mock_utils.limpiar_nombre_archivo.return_value = "clean_unico"
+
+    # 2. Mock de Scraping de Movimientos
+    mock_tasks.raspar_movimientos_de_expediente.return_value = [
+        {"link_escrito": "http://doc_unico"}
+    ]
+
+    # 3. Mock de Scraping de Documento
+    mock_tasks.raspar_contenido_documento.return_value = {
+        "url_pdf_principal": "http://pdf_main_unico",
+        "adjuntos": [],
+    }
+
+    # 4. Mock de Existencia de Archivos (False para forzar descarga y fusión)
+    mock_exists.return_value = False
+    mock_tasks.descargar_archivo.return_value = True
+
+    # Ejecutar para el expediente "100/23"
+    mensaje = ejecutar_fase_unico({}, "100/23")
+
+    # Verificaciones
+    assert "Proceso completado para 100/23" in mensaje
+    # Se debe haber llamado a guardar el CSV individual
+    mock_utils.guardar_a_csv.assert_called()
+    # Se debe haber intentado descargar el PDF
+    mock_tasks.descargar_archivo.assert_called()
+    # Se debe haber llamado a la fusión final
+    mock_utils.fusionar_pdfs.assert_called()
