@@ -17,11 +17,11 @@ from tasks import (
     fase_2_movimientos_task,
     fase_3_documentos_task,
     fase_unico_task,
-)  # Importamos la nueva tarea
+)
 import gestor_tareas
 import gestor_almacenamiento
 import session_manager
-import utils  # Necesario para leer el CSV
+import utils
 from functools import wraps
 
 from flask_wtf import FlaskForm
@@ -100,14 +100,16 @@ def fragmento_mensajes():
 @app.route("/")
 @login_required
 def indice():
-    lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
+    usuario = session.get("username")
+    lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
 
-    # Cargamos la lista de expedientes para el dropdown (si existe el CSV)
-    expedientes_disponibles = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
+    ruta_usuario = utils.obtener_ruta_usuario(usuario)
+    ruta_csv = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
+
+    expedientes_disponibles = utils.leer_csv_a_diccionario(ruta_csv)
     if not expedientes_disponibles:
         expedientes_disponibles = []
 
-    # Consultamos el estado real al gestor de tareas
     estados_tareas = {
         "fase_1": gestor_tareas.obtener_estado_tarea(
             gestor_tareas.obtener_id_tarea("fase_1"), "fase_1"
@@ -139,7 +141,6 @@ def iniciar_fase(nombre_fase):
         "fase_1": fase_1_lista_task,
         "fase_2": fase_2_movimientos_task,
         "fase_3": fase_3_documentos_task,
-        # fase_unico se maneja en una ruta especial porque requiere argumentos
     }
 
     if nombre_fase not in mapa_tareas:
@@ -157,7 +158,11 @@ def iniciar_fase(nombre_fase):
         return render_template("_fragmento_mensajes.html"), 200
 
     cookies_del_usuario = session["siped_cookies"]
-    tarea = mapa_tareas[nombre_fase].delay(cookies=cookies_del_usuario)
+    usuario = session["username"]
+
+    tarea = mapa_tareas[nombre_fase].delay(
+        cookies=cookies_del_usuario, username=usuario
+    )
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
 
     flash(f"Fase {nombre_fase.split('_')[1]} iniciada con ID: {tarea.id}", "success")
@@ -167,9 +172,6 @@ def iniciar_fase(nombre_fase):
 @app.route("/iniciar_descarga_unico", methods=["POST"])
 @login_required
 def iniciar_descarga_unico():
-    """
-    Ruta específica para la descarga de un solo expediente, recibe el ID del formulario.
-    """
     nro_expediente = request.form.get("expediente_seleccionado")
     nombre_fase = "fase_unico"
 
@@ -185,10 +187,10 @@ def iniciar_descarga_unico():
         return render_template("_fragmento_mensajes.html"), 200
 
     cookies_del_usuario = session["siped_cookies"]
+    usuario = session["username"]
 
-    # Lanzamos la tarea pasando el argumento extra
     tarea = fase_unico_task.delay(
-        cookies=cookies_del_usuario, nro_expediente=nro_expediente
+        cookies=cookies_del_usuario, nro_expediente=nro_expediente, username=usuario
     )
 
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
@@ -216,15 +218,20 @@ def fragmento_estado(nombre_fase):
 @app.route("/fragmento/pdfs")
 @login_required
 def fragmento_pdfs():
-    lista_pdf = gestor_almacenamiento.listar_archivos_pdf()
+    usuario = session.get("username")
+    lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
     return render_template("_fragmento_pdfs.html", archivos_pdf=lista_pdf)
 
 
 @app.route("/descargar/<nombre_archivo>")
 @login_required
 def descargar_archivo(nombre_archivo):
+    usuario = session.get("username")
+    ruta_usuario = utils.obtener_ruta_usuario(usuario)
+    dir_docs = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
+
     return send_from_directory(
-        directory=config.DOCUMENTOS_OUTPUT_DIR, path=nombre_archivo, as_attachment=True
+        directory=dir_docs, path=nombre_archivo, as_attachment=True
     )
 
 

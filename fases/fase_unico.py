@@ -8,7 +8,7 @@ from utils import manejar_fase_con_sesion
 
 
 @manejar_fase_con_sesion("FASE ÚNICA: PROCESAR UN EXPEDIENTE")
-def ejecutar_fase_unico(session, nro_expediente_objetivo):
+def ejecutar_fase_unico(session, nro_expediente_objetivo, username):
     """
     Realiza el ciclo completo para UN solo expediente seleccionado:
     1. Busca el expediente en la lista maestra.
@@ -16,8 +16,10 @@ def ejecutar_fase_unico(session, nro_expediente_objetivo):
     3. Descarga los PDFs (Principal y Adjuntos).
     4. Genera el PDF consolidado.
     """
-    # 1. Cargar lista maestra y buscar el expediente
-    expedientes = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
+    ruta_usuario = utils.obtener_ruta_usuario(username)
+    ruta_csv_maestro = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
+
+    expedientes = utils.leer_csv_a_diccionario(ruta_csv_maestro)
     if not expedientes:
         return f"Error: No se encontró '{config.LISTA_EXPEDIENTES_CSV}'. Ejecute Fase 1 primero."
 
@@ -35,21 +37,20 @@ def ejecutar_fase_unico(session, nro_expediente_objetivo):
     nombre_base = f"{nro} - {caratula}"
     print(f"Iniciando proceso para: {nombre_base}")
 
-    # 2. Actualizar Movimientos
     print("  > Actualizando movimientos...")
     movimientos = scraper_tasks.raspar_movimientos_de_expediente(
         session, expediente_data
     )
 
+    dir_movimientos = os.path.join(ruta_usuario, config.MOVIMIENTOS_OUTPUT_DIR)
+    dir_docs = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
+
     nombre_csv = f"{nombre_base}.csv"
     if movimientos:
-        utils.guardar_a_csv(
-            movimientos, nombre_csv, subdirectory=config.MOVIMIENTOS_OUTPUT_DIR
-        )
+        utils.guardar_a_csv(movimientos, nombre_csv, subdirectory=dir_movimientos)
     else:
-        # Si no hay nuevos en la web, intentamos leer el local por si ya existía
         print("  > No se encontraron movimientos nuevos, buscando local...")
-        ruta_csv = os.path.join(config.MOVIMIENTOS_OUTPUT_DIR, nombre_csv)
+        ruta_csv = os.path.join(dir_movimientos, nombre_csv)
         movimientos = utils.leer_csv_a_diccionario(ruta_csv)
 
     if not movimientos:
@@ -57,9 +58,8 @@ def ejecutar_fase_unico(session, nro_expediente_objetivo):
             f"Finalizado sin datos: No hay movimientos para {nro_expediente_objetivo}."
         )
 
-    # 3. Descargar PDFs
     print("  > Gestionando descargas de PDF...")
-    ruta_carpeta_expediente = os.path.join(config.DOCUMENTOS_OUTPUT_DIR, nombre_base)
+    ruta_carpeta_expediente = os.path.join(dir_docs, nombre_base)
     os.makedirs(ruta_carpeta_expediente, exist_ok=True)
 
     contador_documentos = 0
@@ -87,7 +87,6 @@ def ejecutar_fase_unico(session, nro_expediente_objetivo):
                         )
                     # Adjuntos
                     for idx, adj in enumerate(datos_documento.get("adjuntos", [])):
-                        # Limpieza extra del nombre del adjunto
                         nombre_adj = utils.limpiar_nombre_archivo(adj["nombre"])
                         nombre_adj = (
                             nombre_adj.lower().replace(".pdf", "").replace(".", "")
@@ -112,12 +111,10 @@ def ejecutar_fase_unico(session, nro_expediente_objetivo):
             except Exception as e:
                 print(f"    > Error procesando doc {id_correlativo}: {e}")
 
-    # 4. Fusionar
     print("  > Generando PDF consolidado...")
     nombre_pdf_final = f"{nombre_base} (Consolidado).pdf"
-    ruta_pdf_final = os.path.join(config.DOCUMENTOS_OUTPUT_DIR, nombre_pdf_final)
+    ruta_pdf_final = os.path.join(dir_docs, nombre_pdf_final)
 
-    # Borrar anterior si existe para regenerar
     if os.path.exists(ruta_pdf_final):
         os.remove(ruta_pdf_final)
 

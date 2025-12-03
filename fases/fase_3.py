@@ -8,12 +8,15 @@ from utils import manejar_fase_con_sesion
 
 
 @manejar_fase_con_sesion("FASE 3: OBTENER DOCUMENTOS PDF Y CONSOLIDAR")
-def ejecutar_fase_3_documentos(session):
+def ejecutar_fase_3_documentos(session, username):
     """
     FASE 3: Descarga los PDFs (principal y adjuntos) para cada movimiento
     y luego fusiona todos los PDFs descargados por expediente.
     """
-    expedientes_a_procesar = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
+    ruta_usuario = utils.obtener_ruta_usuario(username)
+    ruta_csv_maestro = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
+
+    expedientes_a_procesar = utils.leer_csv_a_diccionario(ruta_csv_maestro)
     if not expedientes_a_procesar:
         mensaje = "Error: No se encontró el archivo maestro. Ejecute Fase 1 primero."
         print(mensaje)
@@ -24,6 +27,9 @@ def ejecutar_fase_3_documentos(session):
 
     print("Sesión iniciada para el bucle de descarga y consolidación de PDFs.")
 
+    dir_movimientos = os.path.join(ruta_usuario, config.MOVIMIENTOS_OUTPUT_DIR)
+    dir_docs = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
+
     for i, expediente in enumerate(expedientes_a_procesar):
         nro_expediente = expediente.get("expediente", "SIN_NRO")
         caratula_exp = expediente.get("caratula", "SIN_CARATULA")
@@ -32,18 +38,16 @@ def ejecutar_fase_3_documentos(session):
             f"\n--- Procesando Expediente {i + 1}/{total_expedientes}: {nro_expediente} ---"
         )
 
-        # --- Definir rutas de archivos ---
         nro = utils.limpiar_nombre_archivo(nro_expediente)
         caratula = utils.limpiar_nombre_archivo(caratula_exp)
         nombre_carpeta_expediente = f"{nro} - {caratula}"
-        ruta_carpeta_expediente = os.path.join(
-            config.DOCUMENTOS_OUTPUT_DIR, nombre_carpeta_expediente
-        )
+
+        ruta_carpeta_expediente = os.path.join(dir_docs, nombre_carpeta_expediente)
 
         os.makedirs(ruta_carpeta_expediente, exist_ok=True)
 
         nombre_csv = f"{nro} - {caratula}.csv"
-        ruta_csv = os.path.join(config.MOVIMIENTOS_OUTPUT_DIR, nombre_csv)
+        ruta_csv = os.path.join(dir_movimientos, nombre_csv)
 
         movimientos = utils.leer_csv_a_diccionario(ruta_csv)
 
@@ -77,7 +81,6 @@ def ejecutar_fase_3_documentos(session):
                         # 2. Añadir PDF Principal (si existe)
                         url_main = datos_documento.get("url_pdf_principal")
                         if url_main:
-                            # Nomenclatura: 01_principal.pdf (para ordenación cronológica y tipo)
                             nombre_pdf_main = f"{id_correlativo}_principal.pdf"
                             pdfs_a_descargar.append(
                                 {
@@ -95,7 +98,6 @@ def ejecutar_fase_3_documentos(session):
                                 nombre_orig = utils.limpiar_nombre_archivo(
                                     adj["nombre"]
                                 )
-                                # Nomenclatura: 01_adjunto_1_NombreOriginal.pdf
                                 nombre_base = nombre_orig.replace(".PDF", "").replace(
                                     ".pdf", ""
                                 )
@@ -143,9 +145,8 @@ def ejecutar_fase_3_documentos(session):
             f"  > Descarga de PDFs finalizada para {nro_expediente}. (Descargados: {total_pdfs_descargados})"
         )
 
-        # --- 5. Fusionar PDF final ---
         nombre_pdf_final = f"{nombre_carpeta_expediente} (Consolidado).pdf"
-        ruta_pdf_final = os.path.join(config.DOCUMENTOS_OUTPUT_DIR, nombre_pdf_final)
+        ruta_pdf_final = os.path.join(dir_docs, nombre_pdf_final)
 
         archivos_existentes_en_carpeta = [
             f for f in os.listdir(ruta_carpeta_expediente) if f.lower().endswith(".pdf")

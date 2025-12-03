@@ -8,6 +8,7 @@ LISTA_EXPEDIENTES_URL = f"{BASE_URL}/siped/expediente/buscar/submit_buscar_aboga
 AJAX_MOVIMIENTOS_URL = f"{BASE_URL}/siped/expediente/buscar/ver_mas_escritosAjax.php"
 
 # --- Archivos de Salida ---
+DATA_ROOT_DIR = "datos_usuarios"
 LISTA_EXPEDIENTES_CSV = "expedientes_completos.csv"
 MOVIMIENTOS_OUTPUT_DIR = "movimientos_expedientes"
 DOCUMENTOS_OUTPUT_DIR = "documentos_expedientes"

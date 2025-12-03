@@ -3,8 +3,8 @@ import os
 import re
 import functools
 import session_manager
+import config
 
-# Importamos pypdf directamente, ya que está en requirements.txt
 try:
     from pypdf import PdfWriter, PdfReader
 except ImportError:
@@ -20,9 +20,23 @@ def limpiar_nombre_archivo(name):
     """
     if not name:
         name = "SIN_NOMBRE"
-    name = name.replace("/", "-")
+    name = str(name).replace("/", "-")
     name = re.sub(r'[\\*?:"<>|]', "", name)
     return name[:150].strip()
+
+
+def obtener_ruta_usuario(username):
+    """
+    Genera y crea la ruta base para los archivos de un usuario específico.
+    """
+    if not username:
+        username = "default"
+
+    username_safe = limpiar_nombre_archivo(str(username))
+    ruta_usuario = os.path.join(config.DATA_ROOT_DIR, username_safe)
+
+    os.makedirs(ruta_usuario, exist_ok=True)
+    return ruta_usuario
 
 
 def guardar_a_csv(data, filename, subdirectory="."):
@@ -77,7 +91,6 @@ def fusionar_pdfs(source_directory, output_pdf_path):
         print("  > No se encontraron archivos .pdf para fusionar.")
         return
 
-    # Ordenar alfabéticamente para asegurar el orden cronológico
     pdf_files.sort()
 
     merger = PdfWriter()

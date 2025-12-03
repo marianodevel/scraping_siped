@@ -15,32 +15,34 @@ celery_app = Celery("tasks", broker=REDIS_URL, backend=REDIS_URL)
 
 
 @celery_app.task(name="tasks.fase_1_lista_task", bind=True)
-def fase_1_lista_task(self, cookies):
+def fase_1_lista_task(self, cookies, username):
     """
     Tarea de Celery para la Fase 1: Obtener lista maestra.
     """
-    return ejecutar_fase_1_lista(cookies=cookies)
+    return ejecutar_fase_1_lista(cookies=cookies, username=username)
 
 
 @celery_app.task(name="tasks.fase_2_movimientos_task", bind=True)
-def fase_2_movimientos_task(self, cookies):
+def fase_2_movimientos_task(self, cookies, username):
     """
     Tarea de Celery para la Fase 2: Descargar movimientos individuales (CSV).
     """
-    return ejecutar_fase_2_movimientos(cookies=cookies)
+    return ejecutar_fase_2_movimientos(cookies=cookies, username=username)
 
 
 @celery_app.task(name="tasks.fase_3_documentos_task", bind=True)
-def fase_3_documentos_task(self, cookies):
+def fase_3_documentos_task(self, cookies, username):
     """
     Tarea de Celery para la Fase 3: Descargar documentos de texto y compilar PDFs.
     """
-    return ejecutar_fase_3_documentos(cookies=cookies)
+    return ejecutar_fase_3_documentos(cookies=cookies, username=username)
 
 
 @celery_app.task(name="tasks.fase_unico_task", bind=True)
-def fase_unico_task(self, cookies, nro_expediente):
+def fase_unico_task(self, cookies, nro_expediente, username):
     """
     Tarea de Celery para Procesar un Único Expediente.
     """
-    return ejecutar_fase_unico(cookies=cookies, nro_expediente_objetivo=nro_expediente)
+    return ejecutar_fase_unico(
+        cookies=cookies, nro_expediente_objetivo=nro_expediente, username=username
+    )
