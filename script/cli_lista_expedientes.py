@@ -2,7 +2,6 @@ import os
 import sys
 import getpass
 
-# Agregar directorio raíz al path para importar módulos
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import session_manager
@@ -28,10 +27,18 @@ def main_lista():
         session = session_manager.crear_sesion_con_cookies(cookies)
         expedientes_list = scraper_tasks.raspar_lista_expedientes(session)
 
+        # Generamos la ruta específica del usuario
+        ruta_usuario = utils.obtener_ruta_usuario(usuario)
+
         if expedientes_list:
-            utils.guardar_a_csv(expedientes_list, config.LISTA_EXPEDIENTES_CSV)
+            # Guardamos en la subcarpeta del usuario
+            utils.guardar_a_csv(
+                expedientes_list,
+                config.LISTA_EXPEDIENTES_CSV,
+                subdirectory=ruta_usuario,
+            )
             print(
-                f"\n✅ Lista guardada en '{config.LISTA_EXPEDIENTES_CSV}'. Total: {len(expedientes_list)}"
+                f"\n✅ Lista guardada en '{ruta_usuario}/{config.LISTA_EXPEDIENTES_CSV}'. Total: {len(expedientes_list)}"
             )
         else:
             print("\n⚠️ No se encontraron expedientes.")

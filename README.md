@@ -1,70 +1,28 @@
 # Scraping SIPED - Intranet PJ Santa Cruz
 
-Herramienta automatizada para la extracción y gestión de expedientes del sistema SIPED (Intranet del Poder Judicial de Santa Cruz). Utiliza Flask para la interfaz web, Celery para el procesamiento en segundo plano y scripts modulares para ejecución manual.
+Herramienta automatizada para la extracción y gestión de expedientes del sistema SIPED (Intranet del Poder Judicial de Santa Cruz).
 
-## Requisitos Previos
+## Estructura de Datos (Namespaces)
 
-1.  **Python 3.8** o superior.
-2.  **Redis Server**: Motor de base de datos en memoria para la cola de tareas de Celery.
-    * *Linux:* `sudo apt install redis-server`
-    * *Windows:* Usar WSL2 o Docker.
+El sistema organiza los archivos descargados por usuario para evitar conflictos.
+La carpeta raíz es `datos_usuarios/`.
 
-## Instalación
+* `datos_usuarios/<CUIL_USUARIO>/expedientes_completos.csv`: Índice principal.
+* `datos_usuarios/<CUIL_USUARIO>/movimientos_expedientes/`: CSVs con movimientos.
+* `datos_usuarios/<CUIL_USUARIO>/documentos_expedientes/`: PDFs descargados y consolidados.
 
-1.  **Clonar y preparar entorno:**
-    ```bash
-    git clone https://github.com/marianodevel/scraping_siped.git
-    cd scraping_siped
-    python -m venv .venv
-    source .venv/bin/activate  # En Windows: .venv\Scripts\activate
-    ```
+## Instalación y Ejecución
 
-2.  **Instalar dependencias:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+1.  **Instalar dependencias:** `pip install -r requirements.txt`
+2.  **Redis:** Asegúrate de que `redis-server` esté corriendo.
+3.  **Worker:** `celery -A tasks.celery_app worker --loglevel=info`
+4.  **Web:** `python app.py`
 
-## Ejecución de la Aplicación Web
+## Ejecución Manual (CLI)
 
-Necesitas tres terminales abiertas:
+Los scripts solicitarán tu usuario (Cuil/DNI) para leer y guardar los datos en tu carpeta personal correspondiente.
 
-1.  **Redis:** Asegúrate de que esté corriendo (`redis-server`).
-2.  **Worker (Celery):** Procesa las tareas en segundo plano.
-    ```bash
-    celery -A tasks.celery_app worker --loglevel=info
-    ```
-3.  **Web (Flask):** Interfaz de usuario.
-    ```bash
-    python app.py
-    ```
-    Accede a: `http://127.0.0.1:5001`
-
-## Ejecución Manual (Scripts CLI)
-
-Si prefieres ejecutar el proceso fase por fase desde la terminal (sin interfaz web), utiliza los scripts modulares. Te pedirán tus credenciales interactivamente.
-
-**Nota:** Ejecútalos como módulos desde la raíz del proyecto.
-
-* **Fase 1: Obtener Lista Maestra**
-    Descarga la lista de expedientes a `expedientes_completos.csv`.
-    ```bash
-    python -m script.cli_lista_expedientes
-    ```
-
-* **Fase 2: Obtener Movimientos**
-    Lee el CSV maestro y descarga los movimientos individuales.
-    ```bash
-    python -m script.cli_movimientos
-    ```
-
-* **Fase 3: Descargar y Consolidar PDFs**
-    Descarga los documentos de cada movimiento y genera un PDF unificado por expediente.
-    ```bash
-    python -m script.cli_movimientos_pdf
-    ```
-
-## Estructura de Datos
-
-* `expedientes_completos.csv`: Índice principal.
-* `movimientos_expedientes/`: Archivos CSV con los movimientos de cada causa.
-* `documentos_expedientes/`: Carpetas con PDFs descargados y el PDF consolidado final.
+* `python -m script.cli_lista_expedientes`
+* `python -m script.cli_movimientos`
+* `python -m script.cli_movimientos_pdf`
+* `python -m script.cli_un_expediente`

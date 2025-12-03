@@ -13,7 +13,7 @@ def main():
     print("\n=== CLI FASE 3: DESCARGA Y CONSOLIDACIÓN DE PDFs ===")
     print("Nota: Se requiere autenticación manual.\n")
 
-    # 2. Autenticación Interactiva (Sin .env)
+    # 2. Autenticación Interactiva
     usuario = input("Ingrese Usuario (Cuil/DNI): ").strip()
     clave = getpass.getpass("Ingrese Contraseña: ").strip()
 
@@ -23,7 +23,7 @@ def main():
 
     print(f"\nAutenticando a {usuario} en SIPED...")
 
-    # 3. Obtener Cookies usando las funciones de session_manager
+    # 3. Obtener Cookies
     cookies = session_manager.autenticar_en_siped(usuario, clave)
 
     if not cookies:
@@ -33,9 +33,9 @@ def main():
     print("✅ Autenticación exitosa. Iniciando descarga...\n")
 
     # 4. Ejecutar la lógica centralizada
-    # El decorador en fase_3 se encarga de crear la sesión con estas cookies.
     try:
-        ejecutar_fase_3_documentos(cookies=cookies)
+        # CORRECCIÓN: Pasamos username para respetar el namespace
+        ejecutar_fase_3_documentos(cookies=cookies, username=usuario)
 
     except Exception as e:
         print(f"\n❌ Ocurrió un error inesperado durante la ejecución: {e}")

@@ -13,17 +13,23 @@ import config
 def main_movimientos():
     print("--- CLI FASE 2: OBTENER MOVIMIENTOS ---")
 
-    expedientes_a_procesar = utils.leer_csv_a_diccionario(config.LISTA_EXPEDIENTES_CSV)
+    # 1. Autenticación / Identificación PRIMERO para saber el namespace
+    usuario = input("Ingrese Usuario (Cuil/DNI): ").strip()
+    clave = getpass.getpass("Ingrese Contraseña: ").strip()
+
+    # Rutas del usuario
+    ruta_usuario = utils.obtener_ruta_usuario(usuario)
+    ruta_csv_maestro = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
+
+    # 2. Cargar lista maestra
+    expedientes_a_procesar = utils.leer_csv_a_diccionario(ruta_csv_maestro)
     if not expedientes_a_procesar:
         print(
-            f"❌ No se encontró '{config.LISTA_EXPEDIENTES_CSV}'. Ejecute Fase 1 primero."
+            f"❌ No se encontró '{config.LISTA_EXPEDIENTES_CSV}' en {ruta_usuario}. Ejecute Fase 1 primero."
         )
         return
 
     print(f"Se procesarán {len(expedientes_a_procesar)} expedientes.")
-
-    usuario = input("Ingrese Usuario (Cuil/DNI): ").strip()
-    clave = getpass.getpass("Ingrese Contraseña: ").strip()
 
     cookies = session_manager.autenticar_en_siped(usuario, clave)
     if not cookies:
@@ -33,6 +39,9 @@ def main_movimientos():
     try:
         session = session_manager.crear_sesion_con_cookies(cookies)
 
+        # Subdirectorio de movimientos del usuario
+        dir_movimientos = os.path.join(ruta_usuario, config.MOVIMIENTOS_OUTPUT_DIR)
+
         for i, expediente in enumerate(expedientes_a_procesar):
             print(
                 f"\nProcesando {i + 1}/{len(expedientes_a_procesar)}: {expediente['expediente']}"
@@ -41,7 +50,7 @@ def main_movimientos():
             nro = utils.limpiar_nombre_archivo(expediente.get("expediente"))
             caratula = utils.limpiar_nombre_archivo(expediente.get("caratula"))
             filename = f"{nro} - {caratula}.csv"
-            filepath = os.path.join(config.MOVIMIENTOS_OUTPUT_DIR, filename)
+            filepath = os.path.join(dir_movimientos, filename)
 
             if os.path.exists(filepath):
                 print(f"  > Ya existe, saltando.")
@@ -54,7 +63,7 @@ def main_movimientos():
 
                 if movements:
                     utils.guardar_a_csv(
-                        movements, filename, subdirectory=config.MOVIMIENTOS_OUTPUT_DIR
+                        movements, filename, subdirectory=dir_movimientos
                     )
                     print(f"  > Guardados {len(movements)} movimientos.")
                 else:
