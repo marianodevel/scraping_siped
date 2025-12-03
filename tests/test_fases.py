@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fases.fase_1 import ejecutar_fase_1_lista
 from fases.fase_2 import ejecutar_fase_2_movimientos
 from fases.fase_3 import ejecutar_fase_3_documentos
-from fases.fase_unico import ejecutar_fase_unico  # Nueva importación
+from fases.fase_unico import ejecutar_fase_unico
 import config
 
 # --- Tests para FASE 1 (Lista) ---
@@ -20,29 +20,42 @@ import config
 @patch("fases.fase_1.scraper_tasks")
 @patch("utils.session_manager.crear_sesion_con_cookies")
 def test_fase_1_exito(mock_crear_sesion, mock_tasks, mock_utils):
-    # (El orden de los argumentos es de abajo hacia arriba en los decoradores:
-    # 1. crear_sesion, 2. tasks, 3. utils)
     mock_sesion = MagicMock()
     mock_crear_sesion.return_value = mock_sesion
 
     mock_tasks.raspar_lista_expedientes.return_value = [{"exp": "1"}, {"exp": "2"}]
 
     cookies_dummy = {"session": "test"}
-    mensaje = ejecutar_fase_1_lista(cookies_dummy)
+    username_dummy = "usuario_test"
+
+    # Mock de ruta usuario
+    ruta_usuario_mock = "/tmp/datos_usuarios/usuario_test"
+    mock_utils.obtener_ruta_usuario.return_value = ruta_usuario_mock
+
+    # EJECUCIÓN con username
+    mensaje = ejecutar_fase_1_lista(cookies_dummy, username_dummy)
 
     assert "Total: 2" in mensaje
+
+    # VERIFICACIÓN: debe usar el subdirectorio del usuario
     mock_utils.guardar_a_csv.assert_called_with(
-        [{"exp": "1"}, {"exp": "2"}], config.LISTA_EXPEDIENTES_CSV
+        [{"exp": "1"}, {"exp": "2"}],
+        config.LISTA_EXPEDIENTES_CSV,
+        subdirectory=ruta_usuario_mock,
     )
 
 
 @patch("fases.fase_1.scraper_tasks")
 @patch("utils.session_manager.crear_sesion_con_cookies")
-def test_fase_1_sin_resultados(mock_crear_sesion, mock_tasks):
+@patch("fases.fase_1.utils")
+def test_fase_1_sin_resultados(mock_utils, mock_crear_sesion, mock_tasks):
     mock_crear_sesion.return_value = MagicMock()
     mock_tasks.raspar_lista_expedientes.return_value = []
 
-    mensaje = ejecutar_fase_1_lista({})
+    # Mock ruta
+    mock_utils.obtener_ruta_usuario.return_value = "/tmp/dummy"
+
+    mensaje = ejecutar_fase_1_lista({}, "user")
 
     assert "No se encontraron expedientes" in mensaje
 
@@ -56,19 +69,33 @@ def test_fase_1_sin_resultados(mock_crear_sesion, mock_tasks):
 def test_fase_2_flujo_normal(mock_crear_sesion, mock_tasks, mock_utils):
     mock_crear_sesion.return_value = MagicMock()
 
+    # Configuración de mocks
     mock_utils.leer_csv_a_diccionario.return_value = [
         {"expediente": "100/23", "caratula": "TEST"}
     ]
     mock_utils.limpiar_nombre_archivo.return_value = "clean_name"
 
+    ruta_usuario_mock = "/tmp/datos_usuarios/user"
+    mock_utils.obtener_ruta_usuario.return_value = ruta_usuario_mock
+
     # Mockeamos os.path.exists dentro de fase_2
     with patch("fases.fase_2.os.path.exists", return_value=False):
-        mock_tasks.raspar_movimientos_de_expediente.return_value = [{"mov": "uno"}]
+        with patch("fases.fase_2.os.makedirs"):  # Mock makedirs
+            mock_tasks.raspar_movimientos_de_expediente.return_value = [{"mov": "uno"}]
 
-        mensaje = ejecutar_fase_2_movimientos({})
+            # EJECUCIÓN
+            mensaje = ejecutar_fase_2_movimientos({}, "user")
 
-        assert "Total de movimientos descargados" in mensaje
-        mock_utils.guardar_a_csv.assert_called()
+            assert "Total de movimientos descargados" in mensaje
+
+            # Verificar que guarda en la carpeta de movimientos DENTRO del usuario
+            expected_dir = os.path.join(
+                ruta_usuario_mock, config.MOVIMIENTOS_OUTPUT_DIR
+            )
+            mock_utils.guardar_a_csv.assert_called()
+            # Chequeamos args de la llamada
+            args, kwargs = mock_utils.guardar_a_csv.call_args
+            assert kwargs["subdirectory"] == expected_dir
 
 
 @patch("fases.fase_2.utils")
@@ -76,8 +103,9 @@ def test_fase_2_flujo_normal(mock_crear_sesion, mock_tasks, mock_utils):
 def test_fase_2_sin_csv_maestro(mock_crear_sesion, mock_utils):
     mock_crear_sesion.return_value = MagicMock()
     mock_utils.leer_csv_a_diccionario.return_value = None
+    mock_utils.obtener_ruta_usuario.return_value = "/tmp/user"
 
-    mensaje = ejecutar_fase_2_movimientos({})
+    mensaje = ejecutar_fase_2_movimientos({}, "user")
 
     assert "Error: No se encontró el archivo maestro" in mensaje
 
@@ -93,38 +121,34 @@ def test_fase_2_sin_csv_maestro(mock_crear_sesion, mock_utils):
 def test_fase_3_flujo_completo(
     mock_listdir, mock_makedirs, mock_crear_sesion, mock_tasks, mock_utils
 ):
-    """
-    Verifica la cadena completa de Fase 3.
-    """
     mock_crear_sesion.return_value = MagicMock()
 
-    # 1. CSVs: Primero el Maestro, luego los Movimientos
+    ruta_usuario_mock = "/tmp/user"
+    mock_utils.obtener_ruta_usuario.return_value = ruta_usuario_mock
+
+    # 1. CSVs
     mock_utils.leer_csv_a_diccionario.side_effect = [
-        [{"expediente": "100/23", "caratula": "TEST"}],
-        [{"link_escrito": "http://doc"}],
+        [{"expediente": "100/23", "caratula": "TEST"}],  # Maestro
+        [{"link_escrito": "http://doc"}],  # Movimientos
     ]
     mock_utils.limpiar_nombre_archivo.return_value = "clean"
 
-    # 2. Scraping del documento
+    # 2. Scraping
     mock_tasks.raspar_contenido_documento.return_value = {
         "url_pdf_principal": "http://pdf_main",
         "adjuntos": [],
     }
 
-    # 3. SETUP LISTDIR: Simulamos que en la carpeta ya está el PDF descargado
+    # 3. SETUP LISTDIR
     mock_listdir.return_value = ["01_principal.pdf"]
 
-    # 4. Simular que NO existen los PDFs (para disparar descarga) ni el consolidado (para disparar fusión)
     with patch("fases.fase_3.os.path.exists", return_value=False):
-        mensaje = ejecutar_fase_3_documentos({})
+        # EJECUCIÓN
+        mensaje = ejecutar_fase_3_documentos({}, "user")
 
-        # Verificaciones
         mock_tasks.raspar_contenido_documento.assert_called()
         mock_tasks.descargar_archivo.assert_called()
-
-        # Como listdir devolvió un PDF, utils.fusionar_pdfs debería ser llamado
         mock_utils.fusionar_pdfs.assert_called()
-
         assert "completado" in mensaje
 
 
@@ -145,10 +169,10 @@ def test_fase_unico_exito(
     mock_tasks,
     mock_utils,
 ):
-    """
-    Verifica el flujo de procesar un solo expediente seleccionado.
-    """
     mock_crear_sesion.return_value = MagicMock()
+
+    ruta_usuario_mock = "/tmp/user"
+    mock_utils.obtener_ruta_usuario.return_value = ruta_usuario_mock
 
     # 1. Mock de Lista Maestra
     mock_utils.leer_csv_a_diccionario.return_value = [
@@ -167,18 +191,14 @@ def test_fase_unico_exito(
         "adjuntos": [],
     }
 
-    # 4. Mock de Existencia de Archivos (False para forzar descarga y fusión)
+    # 4. Mock de Existencia
     mock_exists.return_value = False
     mock_tasks.descargar_archivo.return_value = True
 
-    # Ejecutar para el expediente "100/23"
-    mensaje = ejecutar_fase_unico({}, "100/23")
+    # EJECUCIÓN
+    mensaje = ejecutar_fase_unico({}, "100/23", "user")
 
-    # Verificaciones
     assert "Proceso completado para 100/23" in mensaje
-    # Se debe haber llamado a guardar el CSV individual
     mock_utils.guardar_a_csv.assert_called()
-    # Se debe haber intentado descargar el PDF
     mock_tasks.descargar_archivo.assert_called()
-    # Se debe haber llamado a la fusión final
     mock_utils.fusionar_pdfs.assert_called()

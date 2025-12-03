@@ -29,6 +29,31 @@ def test_limpiar_nombre_archivo_vacio():
     assert utils.limpiar_nombre_archivo("") == "SIN_NOMBRE"
 
 
+# --- Tests para obtener_ruta_usuario (NUEVO) ---
+
+
+def test_obtener_ruta_usuario():
+    """
+    Verifica que se genere la ruta correcta basada en la config y el usuario.
+    """
+    username = "test_user"
+    expected_path = os.path.join(config.DATA_ROOT_DIR, "test_user")
+
+    with patch("os.makedirs") as mock_makedirs:
+        ruta = utils.obtener_ruta_usuario(username)
+
+        assert ruta == expected_path
+        # Verifica que intente crear la carpeta
+        mock_makedirs.assert_called_with(expected_path, exist_ok=True)
+
+
+def test_obtener_ruta_usuario_none():
+    """Verifica el fallback a 'default' si no hay usuario."""
+    with patch("os.makedirs"):
+        ruta = utils.obtener_ruta_usuario(None)
+        assert os.path.join(config.DATA_ROOT_DIR, "default") in ruta
+
+
 # --- Tests para manejo de CSV (usando tmp_path de pytest) ---
 
 
