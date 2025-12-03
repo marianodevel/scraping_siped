@@ -1,10 +1,10 @@
-# requirements.txt
 Flask
 celery
 redis
 requests
 beautifulsoup4
 fpdf2
+pypdf
 Flask-Login
 Flask-WTF
 wtforms[email]
