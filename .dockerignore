@@ -1,0 +1,21 @@
+# Git
+.git
+.gitignore
+
+# Entornos y Cache
+.venv
+__pycache__
+*.pyc
+*.pyo
+
+# Logs y bases de datos locales
+logs/
+*.log
+dump.rdb
+
+# EXCLUIR CLI Y TESTS (Requisito cumplido)
+script/
+tests/
+
+# Excluir datos locales de tu máquina
+datos_usuarios/

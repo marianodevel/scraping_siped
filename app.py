@@ -24,12 +24,22 @@ import session_manager
 import utils
 from functools import wraps
 
+# Import necesario para producción detrás de un Proxy (Railway/Nginx)
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
 
 # --- Configuración de Flask ---
 app = Flask(__name__)
+
+# Configuración de ProxyFix para Producción
+# x_for=1: Confía en 1 nivel de proxy para la IP
+# x_proto=1: Confía en 1 nivel de proxy para el protocolo (HTTP/HTTPS)
+# x_host=1: Confía en 1 nivel de proxy para el host
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 app.secret_key = os.environ.get(
     "FLASK_SECRET_KEY", "desarrollo-secreto-cambiar-en-prod-MUY-SECRETO"
 )
@@ -236,4 +246,5 @@ def descargar_archivo(nombre_archivo):
 
 
 if __name__ == "__main__":
+    # Nota: Este bloque se ignora en producción con Gunicorn
     app.run(debug=True, host="0.0.0.0", port=5001)

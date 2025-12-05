@@ -1,0 +1,44 @@
+services:
+  # 1. Base de datos para la cola de tareas
+  redis:
+    image: redis:alpine
+    container_name: siped_redis
+    ports:
+      - "6379:6379"
+
+  # 2. Aplicación Web (Flask + Gunicorn)
+  web:
+    build: .
+    container_name: siped_web
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - FLASK_SECRET_KEY=clave_secreta_para_sesiones
+      - FLASK_DEBUG=0  # Apagamos el modo debug para producción
+    volumes:
+      # IMPORTANTE: Compartimos la carpeta de datos con el worker
+      - shared_data:/app/datos_usuarios
+    depends_on:
+      - redis
+
+  # 3. Worker (Celery)
+  worker:
+    build: .
+    container_name: siped_worker
+    restart: always
+    # Sobreescribimos el comando para iniciar Celery en lugar de Gunicorn
+    command: celery -A tasks.celery_app worker --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - FLASK_DEBUG=0
+    volumes:
+      # IMPORTANTE: El mismo volumen para que la web vea lo que baja el worker
+      - shared_data:/app/datos_usuarios
+    depends_on:
+      - redis
+
+# Definición del volumen persistente (o compartido)
+volumes:
+  shared_data:
