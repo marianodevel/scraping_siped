@@ -4,7 +4,7 @@ redis
 requests
 beautifulsoup4
 fpdf2
-pypdf          <-- ¡Asegúrate de que esta línea exista!
+pypdf
 Flask-Login
 Flask-WTF
 wtforms[email]
