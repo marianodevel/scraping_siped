@@ -57,6 +57,17 @@
             margin-bottom: 1rem;
         }
         select { width: 100%; margin-bottom: 10px; }
+        
+        /* Nuevo estilo para listas scrollables de CSVs */
+        .csv-scroll-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #444;
+            padding: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.9em;
+        }
+        .csv-scroll-list a { display: block; margin-bottom: 0.2rem; }
     </style>
 </head>
 <body hx-headers='{"Cache-Control": "no-cache"}'>
@@ -145,16 +156,40 @@
              {% with estado=estados_tareas[id_fase] %}
                 {% include '_fragmento_estado.html' with context %}
              {% endwith %}
-             </div>
+        </div>
 
         <form hx-post="{{ url_for('iniciar_fase', nombre_fase=id_fase) }}" 
               hx-target="#flash-messages" 
-              hx-swap="innerHTML"> <button type="submit" data-fase="{{ id_fase }}" 
+              hx-swap="innerHTML"> 
+            <button type="submit" data-fase="{{ id_fase }}" 
                 {% if estados_tareas[id_fase].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
                 Iniciar Fase {{ id_fase.split('_')[1] }}
             </button>
         </form>
-        </div>
+
+        {% if id_fase == 'fase_1' and existe_maestro %}
+            <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+                <strong>Archivo Generado:</strong><br>
+                <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}">
+                    ⬇️ Descargar Lista Maestra (.csv)
+                </a>
+            </div>
+        {% endif %}
+
+        {% if id_fase == 'fase_2' and lista_movimientos %}
+            <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+                <strong>Movimientos Descargados ({{ lista_movimientos|length }}):</strong>
+                <div class="csv-scroll-list">
+                    {% for mov_csv in lista_movimientos %}
+                        <a href="{{ url_for('descargar_archivo', tipo='movimientos', nombre_archivo=mov_csv) }}">
+                            📄 {{ mov_csv }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+    </div>
     {% endfor %}
 
     <h2>PDFs Compilados</h2>
@@ -203,6 +238,10 @@
                 fasesFinalizadas[faseId] = true;
                 document.body.dispatchEvent(new Event('tareaFinalizada'));
                 button.disabled = false;
+                // Recargar página para actualizar listas de archivos (simple)
+                if(status === 'SUCCESS') {
+                   setTimeout(() => window.location.reload(), 1000); 
+                }
             } else if (['PENDING', 'STARTED', 'RETRY'].includes(status)) {
                 button.disabled = true;
             }

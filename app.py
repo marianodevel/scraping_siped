@@ -9,6 +9,7 @@ from flask import (
     send_from_directory,
     request,
     session,
+    abort,
 )
 import os
 import config
@@ -111,7 +112,11 @@ def fragmento_mensajes():
 @login_required
 def indice():
     usuario = session.get("username")
+
+    # Obtener archivos de las 3 fases
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
+    existe_maestro = gestor_almacenamiento.verificar_csv_maestro(usuario)
+    lista_movimientos = gestor_almacenamiento.listar_archivos_movimientos(usuario)
 
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
     ruta_csv = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
@@ -138,6 +143,8 @@ def indice():
     return render_template(
         "index.html",
         archivos_pdf=lista_pdf,
+        existe_maestro=existe_maestro,
+        lista_movimientos=lista_movimientos,
         estados_tareas=estados_tareas,
         username=session.get("username"),
         expedientes_disponibles=expedientes_disponibles,
@@ -233,15 +240,33 @@ def fragmento_pdfs():
     return render_template("_fragmento_pdfs.html", archivos_pdf=lista_pdf)
 
 
-@app.route("/descargar/<nombre_archivo>")
+@app.route("/descargar/<tipo>/<nombre_archivo>")
 @login_required
-def descargar_archivo(nombre_archivo):
+def descargar_archivo(tipo, nombre_archivo):
+    """
+    Descarga archivos basándose en su tipo (carpeta de origen).
+    """
     usuario = session.get("username")
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
-    dir_docs = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
+
+    directorio = None
+
+    if tipo == "maestro":
+        # Fase 1: En la raíz del usuario
+        if nombre_archivo == config.LISTA_EXPEDIENTES_CSV:
+            directorio = ruta_usuario
+    elif tipo == "movimientos":
+        # Fase 2: Carpeta de movimientos
+        directorio = os.path.join(ruta_usuario, config.MOVIMIENTOS_OUTPUT_DIR)
+    elif tipo == "documentos":
+        # Fase 3: Carpeta de documentos PDF
+        directorio = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
+
+    if not directorio or not os.path.exists(os.path.join(directorio, nombre_archivo)):
+        abort(404)
 
     return send_from_directory(
-        directory=dir_docs, path=nombre_archivo, as_attachment=True
+        directory=directorio, path=nombre_archivo, as_attachment=True
     )
 
 

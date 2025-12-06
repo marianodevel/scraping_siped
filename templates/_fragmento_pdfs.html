@@ -1,7 +1,7 @@
 {% if archivos_pdf %} {% for file in archivos_pdf %}
 <div class="file-item">
   <a
-    href="{{ url_for('descargar_archivo', nombre_archivo=file) }}"
+    href="{{ url_for('descargar_archivo', tipo='documentos', nombre_archivo=file) }}"
     target="_blank"
   >
     ⬇️ {{ file }}
