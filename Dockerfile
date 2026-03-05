@@ -10,11 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r siped_group && useradd -r -g siped_group siped_user
+
 COPY requirements-prod.txt .
 RUN pip install --no-cache-dir -r requirements-prod.txt
 
 COPY . .
-RUN mkdir -p logs datos_usuarios
+
+RUN mkdir -p logs datos_usuarios && \
+    chown -R siped_user:siped_group /app
+
+USER siped_user
 
 EXPOSE 5000
 
