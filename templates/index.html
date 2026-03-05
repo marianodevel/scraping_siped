@@ -58,7 +58,6 @@
         }
         select { width: 100%; margin-bottom: 10px; }
         
-        /* Nuevo estilo para listas scrollables de CSVs */
         .csv-scroll-list {
             max-height: 200px;
             overflow-y: auto;
@@ -131,6 +130,18 @@
                 Procesar Expediente
             </button>
         </form>
+
+        <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+            <strong>Documentos Consolidados Disponibles:</strong>
+            <div class="csv-scroll-list" id="pdf-list-container"
+                 hx-get="{{ url_for('fragmento_pdfs') }}"
+                 hx-trigger="load, tareaFinalizada from body"
+                 hx-swap="innerHTML">
+                {% with archivos_pdf=archivos_pdf %}
+                    {% include '_fragmento_pdfs.html' %}
+                {% endwith %}
+            </div>
+        </div>
     </div>
 
     <h2>Fases Masivas</h2>
@@ -171,7 +182,7 @@
             <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
                 <strong>Archivo Generado:</strong><br>
                 <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}">
-                    ⬇️ Descargar Lista Maestra (.csv)
+                    Descargar Lista Maestra (.csv)
                 </a>
             </div>
         {% endif %}
@@ -182,7 +193,7 @@
                 <div class="csv-scroll-list">
                     {% for mov_csv in lista_movimientos %}
                         <a href="{{ url_for('descargar_archivo', tipo='movimientos', nombre_archivo=mov_csv) }}">
-                            📄 {{ mov_csv }}
+                            {{ mov_csv }}
                         </a>
                     {% endfor %}
                 </div>
@@ -192,21 +203,9 @@
     </div>
     {% endfor %}
 
-    <h2>PDFs Compilados</h2>
-    <div class="file-list" id="pdf-list-container"
-         hx-get="{{ url_for('fragmento_pdfs') }}"
-         hx-trigger="load, tareaFinalizada from body"
-         hx-swap="innerHTML">
-        
-        {% with archivos_pdf=archivos_pdf %}
-            {% include '_fragmento_pdfs.html' %}
-        {% endwith %}
-    </div>
-
     <script>
         const fasesFinalizadas = {};
 
-        // Escucha eventos antes del intercambio de contenido HTMX
         document.body.addEventListener('htmx:beforeSwap', function(evt) {
             if (!evt.target.id || !evt.target.id.startsWith('estado-resultado-')) {
                 return;
@@ -218,7 +217,6 @@
             }
         });
 
-        // Escucha eventos después del intercambio de contenido HTMX
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             if (!evt.target.id || !evt.target.id.startsWith('estado-resultado-')) {
                 return;
@@ -238,7 +236,7 @@
                 fasesFinalizadas[faseId] = true;
                 document.body.dispatchEvent(new Event('tareaFinalizada'));
                 button.disabled = false;
-                // Recargar página para actualizar listas de archivos (simple)
+                
                 if(status === 'SUCCESS') {
                    setTimeout(() => window.location.reload(), 1000); 
                 }
