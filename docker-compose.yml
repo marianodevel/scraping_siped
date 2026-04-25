@@ -1,12 +1,15 @@
+name: scraping_siped
+
 services:
   redis:
     image: redis:alpine
     container_name: siped_redis
+    restart: unless-stopped
 
   web:
     build: .
     container_name: siped_web
-    restart: always
+    restart: unless-stopped
     ports:
       - "5000:5000"
     env_file:
@@ -19,7 +22,7 @@ services:
   worker:
     build: .
     container_name: siped_worker
-    restart: always
+    restart: unless-stopped
     command: celery -A tasks.celery_app worker --loglevel=info
     env_file:
       - .env

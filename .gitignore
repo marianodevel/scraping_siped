@@ -4,3 +4,7 @@ movimientos_expedientes/
 __pycache__
 .git
 .venv
+.aider*
+.env
+.env
+.env

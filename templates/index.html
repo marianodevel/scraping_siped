@@ -135,7 +135,7 @@
             <strong>Documentos Consolidados Disponibles:</strong>
             <div class="csv-scroll-list" id="pdf-list-container"
                  hx-get="{{ url_for('fragmento_pdfs') }}"
-                 hx-trigger="load, tareaFinalizada from body"
+                 hx-trigger="load, every 5s, tareaFinalizada from body"
                  hx-swap="innerHTML">
                 {% with archivos_pdf=archivos_pdf %}
                     {% include '_fragmento_pdfs.html' %}
