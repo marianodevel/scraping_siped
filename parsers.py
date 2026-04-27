@@ -271,3 +271,74 @@ def parsear_pagina_documento(html_text):
         print(f"   > !!! Error parseando HTML del documento: {e}")
 
     return data
+
+def parsear_lista_publica(html_content):
+    """
+    Extrae los expedientes de la tabla de resultados públicos (7 columnas).
+    """
+    soup = BeautifulSoup(html_content, 'html.parser')
+    tabla = soup.find('table', class_='table-striped')
+    expedientes = []
+
+    if not tabla:
+        return expedientes
+
+    filas = tabla.find('tbody').find_all('tr') if tabla.find('tbody') else tabla.find_all('tr')
+
+    for fila in filas:
+        columnas = fila.find_all(['td', 'th'])
+        if not columnas or columnas[0].name == 'th':
+            continue
+
+        if len(columnas) >= 7:
+            btn_link = columnas[0].find('button', onclick=True)
+            exp_id = None
+            link_detalle = None
+            
+            span_text = columnas[0].find('span')
+            if span_text:
+                 numero_exp = span_text.get_text(strip=True)
+            else:
+                 numero_exp = columnas[0].get_text(strip=True)
+
+            if btn_link:
+                match = re.search(r"id=(\d+)", btn_link['onclick'])
+                if match:
+                    exp_id = match.group(1)
+                    link_detalle = f"../expediente/buscar/DetalleExpediente.php?id={exp_id}"
+
+            caratula = columnas[1].get_text(strip=True)
+            partes_count = columnas[2].get_text(strip=True)
+            fecha_alta = columnas[3].get_text(strip=True)
+            localidad = columnas[4].get_text(strip=True)
+            dependencia = columnas[5].get_text(strip=True)
+            secretaria = columnas[6].get_text(strip=True)
+
+            expedientes.append({
+                "exp_id": exp_id,
+                "expediente": numero_exp,
+                "caratula": caratula,
+                "partes_count": partes_count,
+                "fecha_alta": fecha_alta,
+                "localidad": localidad,
+                "dependencia": dependencia,
+                "secretaria": secretaria,
+                "link_detalle": urljoin(config.LISTA_EXPEDIENTES_URL, link_detalle) if link_detalle else None
+            })
+
+    return expedientes
+
+def parsear_paginacion_publica(html_content):
+    """
+    Extrae el valor del parámetro 'inicio' del botón SIGUIENTE para el próximo GET.
+    """
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    botones = soup.find_all('button', class_='botones_inicio_fin')
+    for btn in botones:
+        if 'SIGUIENTE' in btn.get_text():
+            if btn.has_attr('onclick'):
+                match = re.search(r"inicio=(\d+)", btn['onclick'])
+                if match:
+                    return int(match.group(1))
+    return None

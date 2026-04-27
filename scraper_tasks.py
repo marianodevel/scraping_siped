@@ -1,6 +1,6 @@
 # scraper_tasks.py
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 import parsers
 import config
 from bs4 import BeautifulSoup
@@ -166,3 +166,76 @@ def raspar_contenido_documento(session, document_url):
             f"   > ERROR al obtener el contenido del documento en {document_url}: {e}"
         )
         return None
+
+def raspar_busqueda_publica_masiva(session, id_localidad="18"):
+    """
+    Itera sobre el paginado de submit.php extrayendo el listado de expedientes públicos.
+    """
+    endpoint = f"{config.BASE_URL}/siped/expediente/buscar/submit.php"
+    expedientes_totales = []
+    inicio = 0
+
+    params_base = {
+        "id_localidad": id_localidad,
+        "id_dependencia": "",
+        "nro_expediente": "",
+        "anio": "",
+        "cmb_documental": "",
+        "filtro_archivados": "todos",
+        "juicio": "",
+        "texto": "",
+        "organismo_origen": "",
+        "id_abogado": "",
+        "txt_abogado": "",
+        "abogado": "",
+        "dnij": "",
+        "apellidoj": "",
+        "nombresj": "",
+        "fecha_alta_dia_desde": "0",
+        "fecha_alta_mes_desde": "",
+        "fecha_alta_anio_desde": "",
+        "fecha_alta_dia_hasta": "0",
+        "fecha_alta_mes_hasta": "",
+        "fecha_alta_anio_hasta": "",
+        "ordenar_por": "exp_numero",
+        "orden": "ASC"
+    }
+
+    page_count = 1
+
+    while True:
+        print(f"Obteniendo página pública {page_count} (inicio={inicio})...")
+        params_actuales = params_base.copy()
+        if inicio > 0:
+            params_actuales["inicio"] = str(inicio)
+
+        url_completa = f"{endpoint}?{urlencode(params_actuales)}"
+        
+        try:
+            response = session.get(url_completa)
+            response.raise_for_status()
+            
+            html = response.text
+            expedientes_pagina = parsers.parsear_lista_publica(html)
+            
+            if not expedientes_pagina:
+                print("  > No se encontraron más expedientes públicos.")
+                break
+                
+            expedientes_totales.extend(expedientes_pagina)
+            print(f"  > Se encontraron {len(expedientes_pagina)} expedientes.")
+            
+            siguiente_inicio = parsers.parsear_paginacion_publica(html)
+            if siguiente_inicio is None or siguiente_inicio <= inicio:
+                break
+                
+            inicio = siguiente_inicio
+            page_count += 1
+            time.sleep(0.5) 
+            
+        except Exception as e:
+            print(f"Error al obtener la página pública {page_count}: {e}")
+            break
+
+    print(f"\nFin de la paginación de expedientes públicos. Total: {len(expedientes_totales)}")
+    return expedientes_totales
