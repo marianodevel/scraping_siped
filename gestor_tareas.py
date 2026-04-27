@@ -3,12 +3,13 @@ from tasks import fase_1_lista_task
 from celery.result import AsyncResult
 
 # Almacenaremos el ID de la última tarea encolada para cada fase.
-# AGREGAMOS 'fase_unico'
+# AGREGAMOS 'fase_unico' y 'fase_publica'
 ULTIMOS_IDS_TAREAS = {
     "fase_1": None,
     "fase_2": None,
     "fase_3": None,
     "fase_unico": None,
+    "fase_publica": None,
 }
 
 

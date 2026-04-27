@@ -18,6 +18,7 @@ from tasks import (
     fase_2_movimientos_task,
     fase_3_documentos_task,
     fase_unico_task,
+    fase_publica_task,
 )
 import gestor_tareas
 import gestor_almacenamiento
@@ -113,18 +114,22 @@ def fragmento_mensajes():
 def indice():
     usuario = session.get("username")
 
-    # Obtener archivos de las 3 fases
+    # Obtener archivos de las fases de abogado
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
     existe_maestro = gestor_almacenamiento.verificar_csv_maestro(usuario)
     lista_movimientos = gestor_almacenamiento.listar_archivos_movimientos(usuario)
 
+    # Verificar existencia de expedientes públicos para la interfaz
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
+    existe_publico = os.path.exists(os.path.join(ruta_usuario, "expedientes_publicos.csv"))
+
     ruta_csv = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
 
     expedientes_disponibles = utils.leer_csv_a_diccionario(ruta_csv)
     if not expedientes_disponibles:
         expedientes_disponibles = []
 
+    # Consultar el estado de todas las posibles tareas incluyendo la nueva fase pública
     estados_tareas = {
         "fase_1": gestor_tareas.obtener_estado_tarea(
             gestor_tareas.obtener_id_tarea("fase_1"), "fase_1"
@@ -138,12 +143,16 @@ def indice():
         "fase_unico": gestor_tareas.obtener_estado_tarea(
             gestor_tareas.obtener_id_tarea("fase_unico"), "fase_unico"
         ),
+        "fase_publica": gestor_tareas.obtener_estado_tarea(
+            gestor_tareas.obtener_id_tarea("fase_publica"), "fase_publica"
+        ),
     }
 
     return render_template(
         "index.html",
         archivos_pdf=lista_pdf,
         existe_maestro=existe_maestro,
+        existe_publico=existe_publico,
         lista_movimientos=lista_movimientos,
         estados_tareas=estados_tareas,
         username=session.get("username"),
@@ -154,10 +163,12 @@ def indice():
 @app.route("/iniciar/<nombre_fase>", methods=["POST"])
 @login_required
 def iniciar_fase(nombre_fase):
+    # Registro de la nueva tarea en el mapa de ejecución
     mapa_tareas = {
         "fase_1": fase_1_lista_task,
         "fase_2": fase_2_movimientos_task,
         "fase_3": fase_3_documentos_task,
+        "fase_publica": fase_publica_task,
     }
 
     if nombre_fase not in mapa_tareas:
@@ -182,7 +193,8 @@ def iniciar_fase(nombre_fase):
     )
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
 
-    flash(f"Fase {nombre_fase.split('_')[1]} iniciada con ID: {tarea.id}", "success")
+    etiqueta_fase = nombre_fase.split('_')[1].capitalize() if '_' in nombre_fase else nombre_fase
+    flash(f"Fase {etiqueta_fase} iniciada con ID: {tarea.id}", "success")
     return render_template("_fragmento_mensajes.html"), 200
 
 
@@ -252,8 +264,8 @@ def descargar_archivo(tipo, nombre_archivo):
     directorio = None
 
     if tipo == "maestro":
-        # Fase 1: En la raíz del usuario
-        if nombre_archivo == config.LISTA_EXPEDIENTES_CSV:
+        # Fase 1 y Fase Pública: En la raíz del usuario
+        if nombre_archivo in [config.LISTA_EXPEDIENTES_CSV, "expedientes_publicos.csv"]:
             directorio = ruta_usuario
     elif tipo == "movimientos":
         # Fase 2: Carpeta de movimientos
@@ -271,5 +283,4 @@ def descargar_archivo(tipo, nombre_archivo):
 
 
 if __name__ == "__main__":
-    # Nota: Este bloque se ignora en producción con Gunicorn
     app.run(debug=True, host="0.0.0.0", port=5001)

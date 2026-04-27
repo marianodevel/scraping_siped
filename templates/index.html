@@ -146,6 +146,8 @@
 
     <h2>Fases Masivas</h2>
     
+    {% include '_fragmento_fase_publica_1.html' %}
+
     {% set fases = [
         ('fase_1', 'Obtener Lista Maestra (CSV)', 'Descarga la lista completa de expedientes y guarda el archivo maestro <code>expedientes_completos.csv</code>.'),
         ('fase_2', 'Descargar Movimientos (CSVs Individuales)', 'Requiere Fase 1. Descarga los movimientos para cada expediente y los guarda en <code>movimientos_expedientes/*.csv</code>.'),

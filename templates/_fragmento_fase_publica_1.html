@@ -1,0 +1,34 @@
+<section class="fase-container" id="fase_publica-container">
+    <div class="fase-control">
+        <h3>Búsqueda Masiva Pública</h3>
+    </div>
+    <p>Extrae todos los expedientes públicos disponibles en la localidad configurada.</p>
+    
+    <div id="estado-resultado-fase_publica" 
+         hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_publica') }}" 
+         hx-trigger="load, every 3s" 
+         hx-swap="innerHTML">
+         
+         {% with id_fase='fase_publica', estado=estados_tareas['fase_publica'] %}
+            {% include '_fragmento_estado.html' with context %}
+         {% endwith %}
+    </div>
+
+    <form hx-post="{{ url_for('iniciar_fase', nombre_fase='fase_publica') }}" 
+          hx-target="#flash-messages" 
+          hx-swap="innerHTML"> 
+        <button type="submit" data-fase="fase_publica" 
+            {% if estados_tareas['fase_publica'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+            Iniciar Scraping Público
+        </button>
+    </form>
+
+    {% if existe_publico %}
+        <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+            <strong>Archivo Generado:</strong><br>
+            <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_publicos.csv') }}">
+                Descargar expedientes_publicos.csv
+            </a>
+        </div>
+    {% endif %}
+</section>
