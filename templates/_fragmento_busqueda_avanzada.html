@@ -1,0 +1,158 @@
+<!-- templates/_fragmento_busqueda_avanzada.html -->
+<section class="fase-container" id="fase_busqueda_avanzada-container" style="border-color: #28a745;">
+    <div class="fase-control">
+        <h3>Búsqueda Avanzada de Expedientes</h3>
+    </div>
+    <p>Realiza una búsqueda con múltiples filtros y descarga los resultados.</p>
+    
+    <form hx-post="{{ url_for('iniciar_busqueda_avanzada') }}" hx-target="#flash-messages" hx-swap="innerHTML">
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div>
+                <label>Localidad:</label>
+                <select name="id_localidad" id="localidad_select" style="width: 100%;">
+                    <option value=""></option>
+                    {% for loc_id, loc_name in localidades.items() %}
+                        <option value="{{ loc_id }}" {% if loc_id == "18" %}selected{% endif %}>{{ loc_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Dependencia:</label>
+                <select name="id_dependencia" id="dependencia_select" style="width: 100%;">
+                    <option value="">Seleccione una dependencia...</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div>
+                <label>Nro. Expediente / Año:</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" name="nro_expediente" placeholder="Nro" size="10">
+                    <span>/</span>
+                    <input type="text" name="anio" placeholder="Año" size="4">
+                    <span>-</span>
+                    <input type="text" name="cmb_documental" placeholder="Inc" size="3">
+                </div>
+            </div>
+            <div>
+                <label>Carátula:</label>
+                <input type="text" name="texto" style="width: 100%; text-transform: uppercase;">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div>
+                <label>Juicio:</label>
+                <select name="juicio" style="width: 100%;">
+                    <option value=""></option>
+                    {% for j_id, j_name in tipos_juicio.items() %}
+                        <option value="{{ j_id }}">{{ j_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Nivel de Acceso:</label>
+                <select name="organismo_origen" style="width: 100%;">
+                    <option value=""></option>
+                    <option value="1">PRIVADO</option>
+                    <option value="2" selected>PUBLICO</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div>
+                <label>Filtrar por:</label>
+                <div>
+                    <label><input type="radio" name="filtro_archivados" value="todos" checked> Todos</label>
+                    <label><input type="radio" name="filtro_archivados" value="solo_archivados"> Solo archivados</label>
+                    <label><input type="radio" name="filtro_archivados" value="excluir_archivados"> Excluir</label>
+                </div>
+            </div>
+            <div>
+                <label>Abogado:</label>
+                <select name="abogado" style="width: 100%;">
+                    <option value=""></option>
+                    {% for ab_id, ab_name in abogados.items() %}
+                        <option value="{{ ab_id }}">{{ ab_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="border: 1px solid #444; padding: 10px; margin-bottom: 15px;">
+            <strong>Justiciable</strong>
+            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                <input type="number" name="dnij" placeholder="DNI" style="flex: 1;">
+                <input type="text" name="apellidoj" placeholder="APELLIDO" style="flex: 2; text-transform: uppercase;">
+                <input type="text" name="nombresj" placeholder="NOMBRES" style="flex: 2; text-transform: uppercase;">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <div style="border: 1px solid #444; padding: 10px;">
+                <strong>Fecha Alta Desde</strong><br>
+                <select name="fecha_alta_dia_desde"><option value="0"></option>{% for i in range(1, 32) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
+                <select name="fecha_alta_mes_desde"><option value=""></option>{% for i in range(1, 13) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
+                <input type="text" name="fecha_alta_anio_desde" placeholder="Año" size="4">
+            </div>
+            <div style="border: 1px solid #444; padding: 10px;">
+                <strong>Fecha Alta Hasta</strong><br>
+                <select name="fecha_alta_dia_hasta"><option value="0"></option>{% for i in range(1, 32) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
+                <select name="fecha_alta_mes_hasta"><option value=""></option>{% for i in range(1, 13) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
+                <input type="text" name="fecha_alta_anio_hasta" placeholder="Año" size="4">
+            </div>
+        </div>
+
+        <div id="estado-resultado-fase_busqueda_avanzada"
+             hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_busqueda_avanzada') }}"
+             hx-trigger="load, every 3s"
+             hx-swap="innerHTML">
+             {% with id_fase='fase_busqueda_avanzada', estado=estados_tareas['fase_busqueda_avanzada'] %}
+                 {% include '_fragmento_estado.html' with context %}
+             {% endwith %}
+        </div>
+
+        <button type="submit" data-fase="fase_busqueda_avanzada"
+            {% if estados_tareas['fase_busqueda_avanzada'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}
+            style="background-color: #28a745; margin-top: 10px;">
+            Iniciar Búsqueda Avanzada
+        </button>
+    </form>
+
+    <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+        <strong>Búsquedas Guardadas:</strong>
+        <div class="csv-scroll-list" id="busquedas-list-container"
+             hx-get="{{ url_for('fragmento_busquedas') }}"
+             hx-trigger="load, every 5s, tareaFinalizada from body"
+             hx-swap="innerHTML">
+            {% with lista_busquedas=lista_busquedas %}
+                {% include '_fragmento_busquedas.html' %}
+            {% endwith %}
+        </div>
+    </div>
+</section>
+
+<script>
+    const dependenciasPorLocalidad = {{ dependencias | tojson }};
+    const localidadSelect = document.getElementById('localidad_select');
+    const dependenciaSelect = document.getElementById('dependencia_select');
+
+    function actualizarDependencias() {
+        const locId = localidadSelect.value;
+        dependenciaSelect.innerHTML = '<option value="">Seleccione una dependencia...</option>';
+        if (locId && dependenciasPorLocalidad[locId]) {
+            for (const [depId, depName] of Object.entries(dependenciasPorLocalidad[locId])) {
+                const option = document.createElement('option');
+                option.value = depId;
+                option.textContent = depName;
+                dependenciaSelect.appendChild(option);
+            }
+        }
+    }
+
+    localidadSelect.addEventListener('change', actualizarDependencias);
+    document.addEventListener("DOMContentLoaded", actualizarDependencias);
+</script>

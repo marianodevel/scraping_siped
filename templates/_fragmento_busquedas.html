@@ -1,0 +1,9 @@
+{% if lista_busquedas %}
+    {% for archivo in lista_busquedas %}
+        <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo=archivo) }}">
+            {{ archivo }}
+        </a>
+    {% endfor %}
+{% else %}
+    <p style="color: #aaa; margin: 0;">No hay búsquedas guardadas aún.</p>
+{% endif %}

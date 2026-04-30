@@ -2,6 +2,7 @@ import csv
 import os
 import re
 import functools
+import time
 import session_manager
 import config
 
@@ -9,14 +10,36 @@ try:
     from pypdf import PdfWriter, PdfReader
 except ImportError:
     print(
-        "ERROR CRÍTICO: 'pypdf' no está instalado. Ejecute 'pip install -r requirements.txt'"
+        "ERROR CRITICO: 'pypdf' no esta instalado. Ejecute 'pip install -r requirements.txt'"
     )
     raise
+
+# Importamos los catálogos de manera global para asegurar disponibilidad en Celery
+try:
+    from catalogos.abogados import ABOGADOS
+except Exception as e:
+    print(f"ADVERTENCIA: No se pudo cargar el catalogo de ABOGADOS: {e}")
+    ABOGADOS = {}
+
+try:
+    from catalogos.localidades import LOCALIDADES
+except Exception:
+    LOCALIDADES = {}
+
+try:
+    from catalogos.dependencias import DEPENDENCIAS_POR_LOCALIDAD
+except Exception:
+    DEPENDENCIAS_POR_LOCALIDAD = {}
+
+try:
+    from catalogos.tipos_juicio import TIPOS_JUICIO
+except Exception:
+    TIPOS_JUICIO = {}
 
 
 def limpiar_nombre_archivo(name):
     """
-    Limpia un string para que sea un nombre de archivo válido.
+    Limpia un string para que sea un nombre de archivo valido.
     """
     if not name:
         name = "SIN_NOMBRE"
@@ -24,20 +47,16 @@ def limpiar_nombre_archivo(name):
     name = re.sub(r'[\\*?:"<>|]', "", name)
     return name[:150].strip()
 
-
 def obtener_ruta_usuario(username):
     """
-    Genera y crea la ruta base para los archivos de un usuario específico.
+    Genera y crea la ruta base para los archivos de un usuario especifico.
     """
     if not username:
         username = "default"
-
     username_safe = limpiar_nombre_archivo(str(username))
     ruta_usuario = os.path.join(config.DATA_ROOT_DIR, username_safe)
-
     os.makedirs(ruta_usuario, exist_ok=True)
     return ruta_usuario
-
 
 def guardar_a_csv(data, filename, subdirectory="."):
     """
@@ -46,22 +65,17 @@ def guardar_a_csv(data, filename, subdirectory="."):
     if not data:
         print(f"  > No hay datos para guardar en {filename}.")
         return
-
     try:
         os.makedirs(subdirectory, exist_ok=True)
         filepath = os.path.join(subdirectory, filename)
-
         print(f"  > Guardando {len(data)} filas en {filepath}...")
-
         headers = data[0].keys()
         with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
             writer.writerows(data)
-
     except Exception as e:
         print(f"  > Error al guardar CSV: {e}")
-
 
 def leer_csv_a_diccionario(filepath):
     """
@@ -72,34 +86,28 @@ def leer_csv_a_diccionario(filepath):
             reader = csv.DictReader(f)
             return list(reader)
     except FileNotFoundError:
-        print(f"  > Nota: No se encontró el archivo '{filepath}'.")
+        print(f"  > Nota: No se encontro el archivo '{filepath}'.")
         return None
     except Exception as e:
         print(f"Error al leer el CSV: {e}")
         return None
 
-
 def fusionar_pdfs(source_directory, output_pdf_path):
     """
     Busca todos los archivos PDF en source_directory, los ordena
-    alfabéticamente y los fusiona en un solo PDF.
+    alfabeticamente y los fusiona en un solo PDF.
     """
     print(f"  > Fusionando PDFs en: {output_pdf_path}...")
     pdf_files = [f for f in os.listdir(source_directory) if f.lower().endswith(".pdf")]
-
     if not pdf_files:
         print("  > No se encontraron archivos .pdf para fusionar.")
         return
-
     pdf_files.sort()
-
     merger = PdfWriter()
     archivos_agregados = []
-
     try:
         for filename in pdf_files:
             filepath = os.path.join(source_directory, filename)
-
             with open(filepath, "rb") as f:
                 reader = PdfReader(f)
                 if len(reader.pages) > 0:
@@ -107,8 +115,7 @@ def fusionar_pdfs(source_directory, output_pdf_path):
                         merger.add_page(page)
                     archivos_agregados.append(filename)
                 else:
-                    print(f"    > ADVERTENCIA: '{filename}' está vacío, saltando.")
-
+                    print(f"    > ADVERTENCIA: '{filename}' esta vacio, saltando.")
         if archivos_agregados:
             with open(output_pdf_path, "wb") as f:
                 merger.write(f)
@@ -116,21 +123,17 @@ def fusionar_pdfs(source_directory, output_pdf_path):
                 f"  > PDF fusionado exitosamente. Documentos incluidos: {len(archivos_agregados)}"
             )
         else:
-            print("  > No se pudo fusionar ningún archivo PDF válido.")
-
+            print("  > No se pudo fusionar ningun archivo PDF valido.")
     except Exception as e:
         print(f"  > !!! ERROR al fusionar PDFs: {e}")
         import traceback
-
         traceback.print_exc()
-
 
 def manejar_fase_con_sesion(nombre_fase):
     """
     Decorador para gestionar el boilerplate de una fase de scraping.
-    Crea la sesión a partir de las cookies.
+    Crea la sesion a partir de las cookies.
     """
-
     def decorador(funcion_nucleo):
         @functools.wraps(funcion_nucleo)
         def wrapper(cookies, *args, **kwargs):
@@ -140,12 +143,133 @@ def manejar_fase_con_sesion(nombre_fase):
                 mensaje = funcion_nucleo(session, *args, **kwargs)
                 print(mensaje)
                 return mensaje
-
             except Exception as e:
                 mensaje = f"Error fatal en {nombre_fase}: {e}"
                 print(mensaje)
                 raise Exception(mensaje)
-
         return wrapper
-
     return decorador
+
+def generar_nombre_busqueda_avanzada(filtros):
+    """
+    Genera un nombre de archivo descriptivo basado en CUALQUIER parametro de busqueda.
+    Realiza un parseo inteligente de los catalogos para reemplazar IDs numericos por texto legible.
+    """
+    partes = []
+    
+    # Set de claves que procesaremos especificamente para darles un formato amigable
+    procesados = {
+        "nro_expediente", "anio", "cmb_documental", "texto", 
+        "abogado", "txt_abogado", "id_abogado", 
+        "dnij", "apellidoj", "nombresj", 
+        "id_localidad", "id_dependencia", "juicio",
+        "fecha_alta_dia_desde", "fecha_alta_mes_desde", "fecha_alta_anio_desde",
+        "fecha_alta_dia_hasta", "fecha_alta_mes_hasta", "fecha_alta_anio_hasta",
+        "filtro_archivados", "organismo_origen", "date", "ordenar_por", "orden", "inicio"
+    }
+
+    # 1. Expediente, Año, Incidente
+    nro = str(filtros.get("nro_expediente", "")).strip()
+    anio = str(filtros.get("anio", "")).strip()
+    inc = str(filtros.get("cmb_documental", "")).strip()
+    if nro or anio or inc:
+        exp_text = f"Exp_{nro}" if nro else "Exp"
+        if anio: exp_text += f"-{anio}"
+        if inc: exp_text += f"-{inc}"
+        partes.append(exp_text)
+
+    # 2. Caratula
+    texto = str(filtros.get("texto", "")).strip()
+    if texto:
+        texto_corto = "_".join(texto.split()[:3])
+        partes.append(f"Caratula_{texto_corto}")
+
+    # 3. Abogado
+    abogado_id = str(filtros.get("abogado", "")).strip()
+    if abogado_id:
+        txt_abogado = ABOGADOS.get(abogado_id, "")
+        if txt_abogado:
+            # Ejemplo: "BRIAMONTE - JORGE ALBERTO - ..."
+            apellido = txt_abogado.split("-")[0].strip().replace(" ", "_")
+            partes.append(f"Abog_{apellido}")
+        else:
+            partes.append(f"Abog_ID{abogado_id}")
+
+    # 4. Justiciable
+    dni = str(filtros.get("dnij", "")).strip()
+    apellido_j = str(filtros.get("apellidoj", "")).strip()
+    nombre_j = str(filtros.get("nombresj", "")).strip()
+    if dni or apellido_j or nombre_j:
+        just = "Justiciable"
+        if apellido_j: just += f"_{apellido_j.replace(' ', '')}"
+        elif nombre_j: just += f"_{nombre_j.replace(' ', '')}"
+        if dni: just += f"_DNI{dni}"
+        partes.append(just)
+
+    # 5. Localidad y Dependencia
+    loc_id = str(filtros.get("id_localidad", "")).strip()
+    dep_id = str(filtros.get("id_dependencia", "")).strip()
+    
+    if loc_id and loc_id != "18": # Omitimos Rio Gallegos por ser el valor predeterminado general
+        loc_name = LOCALIDADES.get(loc_id, loc_id)
+        loc_name = re.sub(r'[^A-Za-z0-9]', '', loc_name)
+        partes.append(f"Loc_{loc_name}")
+            
+    if dep_id:
+        dep_name = ""
+        if loc_id in DEPENDENCIAS_POR_LOCALIDAD:
+            dep_name = DEPENDENCIAS_POR_LOCALIDAD[loc_id].get(dep_id, "")
+        
+        if dep_name:
+            dep_corta = "".join([w[0].upper() for w in dep_name.split() if len(w)>2])
+            partes.append(f"Dep_{dep_corta}")
+        else:
+            partes.append(f"Dep_ID{dep_id}")
+
+    # 6. Tipo de Juicio
+    juicio_id = str(filtros.get("juicio", "")).strip()
+    if juicio_id:
+        j_name = TIPOS_JUICIO.get(juicio_id, "")
+        if j_name:
+            j_corto = "".join([w.capitalize() for w in j_name.split()[:2]])
+            partes.append(f"Juicio_{j_corto}")
+        else:
+            partes.append(f"Juicio_ID{juicio_id}")
+
+    # 7. Fechas
+    dia_d = str(filtros.get("fecha_alta_dia_desde", "0")).strip()
+    mes_d = str(filtros.get("fecha_alta_mes_desde", "")).strip()
+    anio_d = str(filtros.get("fecha_alta_anio_desde", "")).strip()
+    if anio_d and mes_d and dia_d != "0":
+        partes.append(f"Desde_{anio_d}{mes_d.zfill(2)}{dia_d.zfill(2)}")
+
+    dia_h = str(filtros.get("fecha_alta_dia_hasta", "0")).strip()
+    mes_h = str(filtros.get("fecha_alta_mes_hasta", "")).strip()
+    anio_h = str(filtros.get("fecha_alta_anio_hasta", "")).strip()
+    if anio_h and mes_h and dia_h != "0":
+        partes.append(f"Hasta_{anio_h}{mes_h.zfill(2)}{dia_h.zfill(2)}")
+
+    # 8. Filtros de Archivo y Origen
+    archivados = str(filtros.get("filtro_archivados", "")).strip()
+    if archivados and archivados != "todos":
+        partes.append(f"Arch_{archivados}")
+        
+    origen = str(filtros.get("organismo_origen", "")).strip()
+    if origen and origen != "2":
+        partes.append(f"NivelAcceso_{origen}")
+
+    # 9. Captura universal: Cualquier otro parametro no contemplado arriba
+    for key, value in filtros.items():
+        if key not in procesados:
+            val_str = str(value).strip()
+            if val_str and val_str not in ("0", ""):
+                partes.append(f"{key}_{val_str}")
+
+    # Si no se inserto absolutamente ningun filtro relevante
+    if not partes:
+        return f"busqueda_avanzada_general_{int(time.time())}.csv"
+
+    nombre_crudo = "_".join(partes)
+    nombre_limpio = limpiar_nombre_archivo(nombre_crudo)
+    
+    return f"busqueda_{nombre_limpio}.csv"
