@@ -5,13 +5,14 @@ import functools
 import time
 import session_manager
 import config
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 try:
     from pypdf import PdfWriter, PdfReader
 except ImportError:
-    print(
-        "ERROR CRITICO: 'pypdf' no esta instalado. Ejecute 'pip install -r requirements.txt'"
-    )
+    print("ERROR CRITICO: 'pypdf' no esta instalado. Ejecute 'pip install -r requirements.txt'")
     raise
 
 # Importamos los catálogos de manera global para asegurar disponibilidad en Celery
@@ -35,7 +36,6 @@ try:
     from catalogos.tipos_juicio import TIPOS_JUICIO
 except Exception:
     TIPOS_JUICIO = {}
-
 
 def limpiar_nombre_archivo(name):
     """
@@ -63,19 +63,19 @@ def guardar_a_csv(data, filename, subdirectory="."):
     Guarda una lista de diccionarios en un archivo CSV.
     """
     if not data:
-        print(f"  > No hay datos para guardar en {filename}.")
+        logger.warning(f"No hay datos para guardar en {filename}.")
         return
     try:
         os.makedirs(subdirectory, exist_ok=True)
         filepath = os.path.join(subdirectory, filename)
-        print(f"  > Guardando {len(data)} filas en {filepath}...")
+        logger.info(f"Guardando {len(data)} filas en {filepath}...")
         headers = data[0].keys()
         with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
             writer.writerows(data)
     except Exception as e:
-        print(f"  > Error al guardar CSV: {e}")
+        logger.error(f"Error al guardar CSV: {e}")
 
 def leer_csv_a_diccionario(filepath):
     """
@@ -86,10 +86,10 @@ def leer_csv_a_diccionario(filepath):
             reader = csv.DictReader(f)
             return list(reader)
     except FileNotFoundError:
-        print(f"  > Nota: No se encontro el archivo '{filepath}'.")
+        logger.info(f"Nota: No se encontro el archivo '{filepath}'.")
         return None
     except Exception as e:
-        print(f"Error al leer el CSV: {e}")
+        logger.error(f"Error al leer el CSV: {e}")
         return None
 
 def fusionar_pdfs(source_directory, output_pdf_path):
@@ -97,10 +97,10 @@ def fusionar_pdfs(source_directory, output_pdf_path):
     Busca todos los archivos PDF en source_directory, los ordena
     alfabeticamente y los fusiona en un solo PDF.
     """
-    print(f"  > Fusionando PDFs en: {output_pdf_path}...")
+    logger.info(f"Fusionando PDFs en: {output_pdf_path}...")
     pdf_files = [f for f in os.listdir(source_directory) if f.lower().endswith(".pdf")]
     if not pdf_files:
-        print("  > No se encontraron archivos .pdf para fusionar.")
+        logger.warning("No se encontraron archivos .pdf para fusionar.")
         return
     pdf_files.sort()
     merger = PdfWriter()
@@ -115,19 +115,15 @@ def fusionar_pdfs(source_directory, output_pdf_path):
                         merger.add_page(page)
                     archivos_agregados.append(filename)
                 else:
-                    print(f"    > ADVERTENCIA: '{filename}' esta vacio, saltando.")
+                    logger.warning(f"ADVERTENCIA: '{filename}' esta vacio, saltando.")
         if archivos_agregados:
             with open(output_pdf_path, "wb") as f:
                 merger.write(f)
-            print(
-                f"  > PDF fusionado exitosamente. Documentos incluidos: {len(archivos_agregados)}"
-            )
+            logger.info(f"PDF fusionado exitosamente. Documentos incluidos: {len(archivos_agregados)}")
         else:
-            print("  > No se pudo fusionar ningun archivo PDF valido.")
+            logger.warning("No se pudo fusionar ningun archivo PDF valido.")
     except Exception as e:
-        print(f"  > !!! ERROR al fusionar PDFs: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"ERROR al fusionar PDFs: {e}", exc_info=True)
 
 def manejar_fase_con_sesion(nombre_fase):
     """
@@ -137,15 +133,15 @@ def manejar_fase_con_sesion(nombre_fase):
     def decorador(funcion_nucleo):
         @functools.wraps(funcion_nucleo)
         def wrapper(cookies, *args, **kwargs):
-            print(f"--- INICIANDO {nombre_fase} ---")
+            logger.info(f"--- INICIANDO {nombre_fase} ---")
             try:
                 session = session_manager.crear_sesion_con_cookies(cookies)
                 mensaje = funcion_nucleo(session, *args, **kwargs)
-                print(mensaje)
+                logger.info(mensaje)
                 return mensaje
             except Exception as e:
                 mensaje = f"Error fatal en {nombre_fase}: {e}"
-                print(mensaje)
+                logger.error(mensaje, exc_info=True)
                 raise Exception(mensaje)
         return wrapper
     return decorador
@@ -214,12 +210,12 @@ def generar_nombre_busqueda_avanzada(filtros):
         loc_name = LOCALIDADES.get(loc_id, loc_id)
         loc_name = re.sub(r'[^A-Za-z0-9]', '', loc_name)
         partes.append(f"Loc_{loc_name}")
-            
+        
     if dep_id:
         dep_name = ""
         if loc_id in DEPENDENCIAS_POR_LOCALIDAD:
             dep_name = DEPENDENCIAS_POR_LOCALIDAD[loc_id].get(dep_id, "")
-        
+            
         if dep_name:
             dep_corta = "".join([w[0].upper() for w in dep_name.split() if len(w)>2])
             partes.append(f"Dep_{dep_corta}")
