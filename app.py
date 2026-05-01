@@ -30,22 +30,20 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
-
 from catalogos.localidades import LOCALIDADES
 from catalogos.tipos_juicio import TIPOS_JUICIO
 from catalogos.abogados import ABOGADOS
 from catalogos.dependencias import DEPENDENCIAS_POR_LOCALIDAD
 
 app = Flask(__name__)
+# Configuracion para proxy reverso
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "desarrollo-secreto-cambiar-en-prod-MUY-SECRETO")
-
 
 class LoginForm(FlaskForm):
     username = StringField("Usuario (Intranet)", validators=[DataRequired()])
     password = PasswordField("Contraseña", validators=[DataRequired()])
     submit = SubmitField("Iniciar Sesión")
-
 
 def login_required(f):
     @wraps(f)
@@ -56,39 +54,44 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if "siped_cookies" in session:
         return redirect(url_for("indice"))
+        
     form = LoginForm()
     if form.validate_on_submit():
         username = form.username.data
         password = form.password.data
+        
+        app.logger.info(f"Intento de login para usuario: {username}")
         cookies_dict = session_manager.autenticar_en_siped(username, password)
+        
         if cookies_dict:
             session["siped_cookies"] = cookies_dict
             session["username"] = username
+            app.logger.info(f"Login exitoso para usuario: {username}")
             flash(f"¡Bienvenido, {username}! Sesión iniciada.", "success")
             return redirect(url_for("indice"))
         else:
+            app.logger.warning(f"Login fallido para usuario: {username}")
             flash("Error de autenticación. Usuario o contraseña incorrectos.", "error")
+            
     return render_template("login.html", form=form)
-
 
 @app.route("/logout")
 @login_required
 def logout():
+    username = session.get('username')
     session.pop("siped_cookies", None)
     session.pop("username", None)
+    app.logger.info(f"Sesión cerrada para usuario: {username}")
     flash("Sesión cerrada exitosamente.", "success")
     return redirect(url_for("login"))
-
 
 @app.route("/fragmento/mensajes")
 def fragmento_mensajes():
     return render_template("_fragmento_mensajes.html")
-
 
 @app.route("/")
 @login_required
@@ -106,7 +109,7 @@ def indice():
     expedientes_disponibles = utils.leer_csv_a_diccionario(ruta_csv)
     if not expedientes_disponibles:
         expedientes_disponibles = []
-
+        
     estados_tareas = {
         "fase_1": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_1"), "fase_1"),
         "fase_2": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_2"), "fase_2"),
@@ -115,7 +118,7 @@ def indice():
         "fase_publica": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_publica"), "fase_publica"),
         "fase_busqueda_avanzada": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_busqueda_avanzada"), "fase_busqueda_avanzada"),
     }
-
+    
     return render_template(
         "index.html",
         archivos_pdf=lista_pdf,
@@ -132,7 +135,6 @@ def indice():
         dependencias=DEPENDENCIAS_POR_LOCALIDAD
     )
 
-
 @app.route("/iniciar/<nombre_fase>", methods=["POST"])
 @login_required
 def iniciar_fase(nombre_fase):
@@ -142,52 +144,59 @@ def iniciar_fase(nombre_fase):
         "fase_3": fase_3_documentos_task,
         "fase_publica": fase_publica_task,
     }
+    
     if nombre_fase not in mapa_tareas:
+        app.logger.error(f"Intento de iniciar fase desconocida: {nombre_fase}")
         flash(f"Fase '{nombre_fase}' no reconocida o requiere parámetros.", "error")
         return render_template("_fragmento_mensajes.html"), 400
-
+        
     estado_actual = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
     )
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
         flash(f"La Fase {nombre_fase} ya está en curso.", "warning")
         return render_template("_fragmento_mensajes.html"), 200
-
+        
     cookies_del_usuario = session["siped_cookies"]
     usuario = session["username"]
+    
     tarea = mapa_tareas[nombre_fase].delay(cookies=cookies_del_usuario, username=usuario)
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
+    
+    app.logger.info(f"Fase {nombre_fase} encolada exitosamente con ID {tarea.id} para usuario {usuario}")
     
     etiqueta_fase = nombre_fase.split('_')[1].capitalize() if '_' in nombre_fase else nombre_fase
     flash(f"Fase {etiqueta_fase} iniciada con ID: {tarea.id}", "success")
     return render_template("_fragmento_mensajes.html"), 200
-
 
 @app.route("/iniciar_descarga_unico", methods=["POST"])
 @login_required
 def iniciar_descarga_unico():
     nro_expediente = request.form.get("expediente_seleccionado")
     nombre_fase = "fase_unico"
+    
     if not nro_expediente:
         flash("Debe seleccionar un expediente.", "warning")
         return render_template("_fragmento_mensajes.html"), 400
-
+        
     estado_actual = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
     )
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
-        flash(f"Ya hay una descarga individual en curso.", "warning")
+        flash("Ya hay una descarga individual en curso.", "warning")
         return render_template("_fragmento_mensajes.html"), 200
-
+        
     cookies_del_usuario = session["siped_cookies"]
     usuario = session["username"]
+    
     tarea = fase_unico_task.delay(
         cookies=cookies_del_usuario, nro_expediente=nro_expediente, username=usuario
     )
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
+    
+    app.logger.info(f"Descarga individual encolada para expediente {nro_expediente} (Usuario: {usuario})")
     flash(f"Procesando expediente {nro_expediente}...", "success")
     return render_template("_fragmento_mensajes.html"), 200
-
 
 @app.route("/iniciar_busqueda_avanzada", methods=["POST"])
 @login_required
@@ -199,7 +208,7 @@ def iniciar_busqueda_avanzada():
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
         flash("La Búsqueda Avanzada ya está en curso.", "warning")
         return render_template("_fragmento_mensajes.html"), 200
-
+        
     cookies_del_usuario = session["siped_cookies"]
     usuario = session["username"]
     filtros = request.form.to_dict()
@@ -208,17 +217,18 @@ def iniciar_busqueda_avanzada():
         cookies=cookies_del_usuario, username=usuario, filtros=filtros
     )
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
+    
+    app.logger.info(f"Búsqueda avanzada encolada para usuario {usuario}")
     flash(f"Búsqueda Avanzada iniciada con ID: {tarea.id}", "success")
     return render_template("_fragmento_mensajes.html"), 200
-
 
 @app.route("/resetear_estado/<nombre_fase>")
 @login_required
 def resetear_estado(nombre_fase):
     gestor_tareas.resetear_id_tarea(nombre_fase)
+    app.logger.info(f"Estado de tarea reseteado manualmente: {nombre_fase}")
     flash(f"Estado de {nombre_fase} reseteado manualmente.", "info")
     return render_template("_fragmento_mensajes.html"), 200
-
 
 @app.route("/fragmento/estado/<nombre_fase>")
 @login_required
@@ -228,14 +238,12 @@ def fragmento_estado(nombre_fase):
     )
     return render_template("_fragmento_estado.html", id_fase=nombre_fase, estado=estado)
 
-
 @app.route("/fragmento/pdfs")
 @login_required
 def fragmento_pdfs():
     usuario = session.get("username")
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
     return render_template("_fragmento_pdfs.html", archivos_pdf=lista_pdf)
-
 
 @app.route("/fragmento/busquedas")
 @login_required
@@ -244,14 +252,13 @@ def fragmento_busquedas():
     lista_busquedas = gestor_almacenamiento.listar_archivos_busqueda(usuario)
     return render_template("_fragmento_busquedas.html", lista_busquedas=lista_busquedas)
 
-
 @app.route("/descargar/<tipo>/<nombre_archivo>")
 @login_required
 def descargar_archivo(tipo, nombre_archivo):
     usuario = session.get("username")
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
     directorio = None
-
+    
     if tipo == "maestro":
         if nombre_archivo in [config.LISTA_EXPEDIENTES_CSV, "expedientes_publicos.csv"] or nombre_archivo.startswith("busqueda_"):
             directorio = ruta_usuario
@@ -259,11 +266,13 @@ def descargar_archivo(tipo, nombre_archivo):
         directorio = os.path.join(ruta_usuario, config.MOVIMIENTOS_OUTPUT_DIR)
     elif tipo == "documentos":
         directorio = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
-
+        
     if not directorio or not os.path.exists(os.path.join(directorio, nombre_archivo)):
+        app.logger.warning(f"Intento de descarga fallida. Archivo no encontrado: {nombre_archivo} en tipo {tipo}")
         abort(404)
+        
+    app.logger.info(f"Descargando archivo: {nombre_archivo} (Usuario: {usuario})")
     return send_from_directory(directory=directorio, path=nombre_archivo, as_attachment=True)
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)

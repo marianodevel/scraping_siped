@@ -7,6 +7,10 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 def autenticar_en_siped(usuario, clave):
+    """
+    Intenta autenticar un usuario y clave contra SIPED.
+    Si tiene éxito, devuelve un diccionario de cookies. Si falla, devuelve None.
+    """
     if not usuario or not clave:
         logger.error("Credenciales incompletas.")
         return None
@@ -25,48 +29,50 @@ def autenticar_en_siped(usuario, clave):
         )
 
         if not url_inicio:
-            logger.error("Error de autenticacion: Redireccion fallida.")
+            logger.error("Error de autenticación: Redirección fallida.")
             return None
 
-        logger.info("Accediendo al menu principal.")
+        logger.info("Accediendo al menú principal.")
         r_menu = session.get(url_inicio)
         r_menu.raise_for_status()
 
         url_token = parsers.obtener_enlace_token_siped(r_menu.text)
 
         if not url_token:
-            logger.error("Token de sesion no encontrado.")
+            logger.error("Token de sesión no encontrado.")
             return None
 
-        logger.info("Procesando token de sesion.")
+        logger.info("Procesando token de sesión.")
         r_token_page = session.get(url_token)
         r_token_page.raise_for_status()
 
         url_dashboard = parsers.obtener_url_meta_refresh(
             r_token_page.text, f"{config.BASE_URL}/siped"
         )
-
-        if not url_dashboard:
-            logger.error("Destino principal inaccesible (Sin redireccion).")
+        
+        # Validamos estrictamente frame_principal.php como medida de seguridad
+        if not url_dashboard or "frame_principal.php" not in url_dashboard:
+            logger.error("Destino principal inaccesible.")
             return None
 
-        if "frame_principal.php" not in url_dashboard and "menu.php" not in url_dashboard:
-            logger.warning(f"Destino inusual detectado: {url_dashboard}. Intentando continuar...")
-
-        logger.info("Verificando acceso al sistema y seteando cookies definitivas.")
+        logger.info("Verificando acceso al sistema.")
         session.get(url_dashboard)
 
-        logger.info(f"Autenticacion completada para el usuario: {usuario}.")
+        logger.info(f"Autenticación completada para el usuario: {usuario}.")
         return dict_from_cookiejar(session.cookies)
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error de conexion durante la autenticacion: {e}")
+        logger.error(f"Error de conexión durante la autenticación: {e}")
         return None
     except Exception as e:
-        logger.error(f"Error interno durante la autenticacion: {e}", exc_info=True)
+        logger.error("Error interno durante la autenticación", exc_info=True)
         return None
 
 def crear_sesion_con_cookies(cookies_dict):
+    """
+    Crea una nueva sesión de 'requests' y le carga las cookies.
+    Devuelve la sesión lista para usar.
+    """
     session = requests.Session()
     session.headers.update(config.BROWSER_HEADERS)
     if cookies_dict:
