@@ -2,21 +2,20 @@ import requests
 import config
 import parsers
 from requests.utils import dict_from_cookiejar, cookiejar_from_dict
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 def autenticar_en_siped(usuario, clave):
-    """
-    Intenta autenticar un usuario y clave contra SIPED.
-    Si tiene exito, devuelve un diccionario de cookies. Si falla, devuelve None.
-    """
     if not usuario or not clave:
-        print("Error: Credenciales incompletas.")
+        logger.error("Credenciales incompletas.")
         return None
 
     session = requests.Session()
     session.headers.update(config.BROWSER_HEADERS)
 
     try:
-        print(f"Autenticando usuario: {usuario}.")
+        logger.info(f"Autenticando usuario: {usuario}.")
         credenciales = {"usuario": usuario, "pass": clave}
         r_login = session.post(config.LOGIN_URL, data=credenciales)
         r_login.raise_for_status()
@@ -26,57 +25,48 @@ def autenticar_en_siped(usuario, clave):
         )
 
         if not url_inicio:
-            print("Error de autenticacion: Redireccion fallida.")
+            logger.error("Error de autenticacion: Redireccion fallida.")
             return None
 
-        print("Accediendo al menu principal.")
+        logger.info("Accediendo al menu principal.")
         r_menu = session.get(url_inicio)
         r_menu.raise_for_status()
 
         url_token = parsers.obtener_enlace_token_siped(r_menu.text)
 
         if not url_token:
-            print("Error: Token de sesion no encontrado.")
+            logger.error("Token de sesion no encontrado.")
             return None
 
-        print("Procesando token de sesion.")
+        logger.info("Procesando token de sesion.")
         r_token_page = session.get(url_token)
         r_token_page.raise_for_status()
-
-        print("========== DEBUG INFO ==========")
-        print(f"URL Token solicitada: {url_token}")
-        print(f"Status Code: {r_token_page.status_code}")
-        print(f"HTML (primeros 1000 chars):\n{r_token_page.text[:1000]}")
-        print("================================")
 
         url_dashboard = parsers.obtener_url_meta_refresh(
             r_token_page.text, f"{config.BASE_URL}/siped"
         )
-        
-        print(f"URL Dashboard extraida por el parser: {url_dashboard}")
 
-        if not url_dashboard or "frame_principal.php" not in url_dashboard:
-            print("Error: Destino principal inaccesible.")
+        if not url_dashboard:
+            logger.error("Destino principal inaccesible (Sin redireccion).")
             return None
 
-        print("Verificando acceso al sistema.")
+        if "frame_principal.php" not in url_dashboard and "menu.php" not in url_dashboard:
+            logger.warning(f"Destino inusual detectado: {url_dashboard}. Intentando continuar...")
+
+        logger.info("Verificando acceso al sistema y seteando cookies definitivas.")
         session.get(url_dashboard)
 
-        print(f"Autenticacion completada para el usuario: {usuario}.")
+        logger.info(f"Autenticacion completada para el usuario: {usuario}.")
         return dict_from_cookiejar(session.cookies)
 
     except requests.exceptions.RequestException as e:
-        print(f"Error de conexion durante la autenticacion: {e}")
+        logger.error(f"Error de conexion durante la autenticacion: {e}")
         return None
     except Exception as e:
-        print(f"Error interno durante la autenticacion: {e}")
+        logger.error(f"Error interno durante la autenticacion: {e}", exc_info=True)
         return None
 
 def crear_sesion_con_cookies(cookies_dict):
-    """
-    Crea una nueva sesion de 'requests' y le carga las cookies.
-    Devuelve la sesion lista para usar.
-    """
     session = requests.Session()
     session.headers.update(config.BROWSER_HEADERS)
     if cookies_dict:
