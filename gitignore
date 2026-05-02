@@ -1,0 +1,43 @@
+# --- Entornos Virtuales y Dependencias ---
+.venv/
+venv/
+ENV/
+env/
+dist/
+build/
+*.egg-info/
+
+# --- Cache de Python y Compilación ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# --- Datos de Usuario (Scraping y Salidas) ---
+# Ignoramos la carpeta raíz de datos y tipos específicos de archivos generados
+datos_usuarios/
+documentos_expedientes/
+movimientos_expedientes/
+expedientes_completos.csv
+*.pdf
+*.csv
+*.log
+
+# --- Configuración y Secretos ---
+.env
+.env.*
+!.env.example
+
+# --- Herramientas de IA y Editores ---
+.aider*
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Bases de Datos Locales ---
+*.db
+*.sqlite3
+dump.rdb

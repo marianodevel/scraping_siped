@@ -1,13 +1,17 @@
-name: scraping_siped
-
 services:
   redis:
     image: redis:alpine
     container_name: siped_redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   web:
     build: .
+    image: scraping_siped_app:latest # Nombre de imagen compartido
     container_name: siped_web
     restart: unless-stopped
     ports:
@@ -16,11 +20,17 @@ services:
       - .env
     volumes:
       - shared_data:/app/datos_usuarios
+      - ./logs:/app/logs
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   worker:
-    build: .
+    image: scraping_siped_app:latest # Usa la imagen construida por 'web'
     container_name: siped_worker
     restart: unless-stopped
     command: celery -A tasks.celery_app worker --loglevel=info
@@ -28,8 +38,14 @@ services:
       - .env
     volumes:
       - shared_data:/app/datos_usuarios
+      - ./logs:/app/logs
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G # Los workers suelen requerir más memoria procesando PDFs
 
 volumes:
   shared_data:
