@@ -1,0 +1,4 @@
+FLASK_ENV=development
+FLASK_SECRET_KEY=clave_secreta_siped_segura
+REDIS_URL=redis://redis:6379/0
+FLASK_DEBUG=0

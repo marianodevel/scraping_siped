@@ -1,0 +1,225 @@
+/* static/css/style.css */
+
+:root {
+  --max-width-main: 1000px;
+  --border-radius-std: 8px;
+}
+
+body.main-layout {
+  max-width: var(--max-width-main);
+  margin: auto;
+  padding: 1rem;
+}
+
+body.centered-layout {
+  display: grid;
+  place-items: center;
+  min-height: 90vh;
+  background-color: #222;
+}
+
+.user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1rem;
+}
+
+.fase-container {
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border-radius: var(--border-radius-std);
+  background: var(--background-alt);
+}
+
+.fase-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fase-info {
+  margin-top: 10px;
+  font-size: 0.85em;
+}
+
+.auth-form {
+  background: #333;
+  border: 1px solid #444;
+  padding: 25px;
+  border-radius: var(--border-radius-std);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  width: 100%;
+  max-width: 400px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+/* Nuevas clases para grillas de formularios */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+input[type="text"],
+input[type="password"],
+select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  box-sizing: border-box;
+  background-color: #222;
+  color: #eee;
+  margin-bottom: 10px;
+}
+
+.error-text {
+  color: #ff6b6b;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.status-badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 0.9em;
+  color: #333;
+  min-width: 80px;
+  text-align: center;
+}
+
+.status-PENDING,
+.status-RETRY {
+  background-color: #ffc107;
+}
+.status-STARTED {
+  background-color: #007bff;
+  color: #fff;
+}
+.status-SUCCESS,
+.status-IDLE {
+  background-color: #28a745;
+  color: #fff;
+}
+.status-FAILURE,
+.status-REVOKED {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+.csv-scroll-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #444;
+  padding: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.9em;
+}
+
+.csv-scroll-list a {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.flash {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 5px;
+}
+
+.flash.success {
+  background-color: #004d00;
+}
+.flash.warning {
+  background-color: #664d00;
+}
+.flash.info {
+  background-color: #004a66;
+}
+.flash.error {
+  background-color: #660000;
+}
+
+.border-success {
+  border-color: #28a745 !important;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flex-row-gap {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.flex-row-gap-10 {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.w-100 {
+  width: 100%;
+}
+.text-uppercase {
+  text-transform: uppercase;
+}
+.flex-1 {
+  flex: 1;
+}
+.flex-2 {
+  flex: 2;
+}
+
+.fieldset-box {
+  border: 1px solid #444;
+  padding: 10px;
+  margin-bottom: 15px;
+}
+
+.section-divider {
+  margin-top: 15px;
+  border-top: 1px solid #444;
+  padding-top: 10px;
+}
+
+.btn-success {
+  background-color: #28a745 !important;
+  margin-top: 10px;
+  color: white;
+}
+.btn-success:hover {
+  background-color: #218838 !important;
+}
+
