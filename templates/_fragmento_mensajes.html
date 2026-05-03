@@ -1,4 +1,12 @@
-{% with messages = get_flashed_messages(with_categories=true) %} {% if messages
-%} {% for category, message in messages %}
-<div class="flash {{ category }}">{{ message }}</div>
-{% endfor %} {% endif %} {% endwith %}
+<!-- templates/_fragmento_mensajes.html -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      {% set bs_class = 'danger' if category == 'error' else category %}
+      <div class="alert alert-{{ bs_class }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}

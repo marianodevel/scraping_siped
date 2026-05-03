@@ -1,132 +1,169 @@
 <!-- templates/_fragmento_busqueda_avanzada.html -->
-<section class="fase-container border-success" id="fase_busqueda_avanzada-container">
-    <div class="fase-control">
-        <h3>Búsqueda Avanzada de Expedientes</h3>
+<section class="card mb-4 border-success" id="fase_busqueda_avanzada-container">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Búsqueda Avanzada de Expedientes</h5>
     </div>
-    <p>Realiza una búsqueda con múltiples filtros y descarga los resultados.</p>
     
-    <form hx-post="{{ url_for('iniciar_busqueda_avanzada') }}" hx-target="#flash-messages" hx-swap="innerHTML">
+    <div class="card-body">
+        <p class="text-muted">Realiza una búsqueda con múltiples filtros y descarga los resultados.</p>
         
-        <div class="form-grid">
-            <div>
-                <label>Localidad:</label>
-                <select name="id_localidad" id="localidad_select" class="w-100">
-                    <option value=""></option>
-                    {% for loc_id, loc_name in localidades.items() %}
-                        <option value="{{ loc_id }}" {% if loc_id == "18" %}selected{% endif %}>{{ loc_name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label>Dependencia:</label>
-                <select name="id_dependencia" id="dependencia_select" class="w-100">
-                    <option value="">Seleccione una dependencia...</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="form-grid">
-            <div>
-                <label>Nro. Expediente / Año:</label>
-                <div class="flex-row-gap">
-                    <input type="text" name="nro_expediente" placeholder="Nro" size="10">
-                    <span>/</span>
-                    <input type="text" name="anio" placeholder="Año" size="4">
-                    <span>-</span>
-                    <input type="text" name="cmb_documental" placeholder="Inc" size="3">
+        <form hx-post="{{ url_for('iniciar_busqueda_avanzada') }}" hx-target="#flash-messages" hx-swap="innerHTML">
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Localidad:</label>
+                    <select name="id_localidad" id="localidad_select" class="form-select">
+                        <option value=""></option>
+                        {% for loc_id, loc_name in localidades.items() %}
+                            <option value="{{ loc_id }}" {% if loc_id == "18" %}selected{% endif %}>{{ loc_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 mt-3 mt-md-0">
+                    <label class="form-label fw-bold">Dependencia:</label>
+                    <select name="id_dependencia" id="dependencia_select" class="form-select">
+                        <option value="">Seleccione una dependencia...</option>
+                    </select>
                 </div>
             </div>
-            <div>
-                <label>Carátula:</label>
-                <input type="text" name="texto" class="w-100 text-uppercase">
-            </div>
-        </div>
 
-        <div class="form-grid">
-            <div>
-                <label>Juicio:</label>
-                <select name="juicio" class="w-100">
-                    <option value=""></option>
-                    {% for j_id, j_name in tipos_juicio.items() %}
-                        <option value="{{ j_id }}">{{ j_name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label>Nivel de Acceso:</label>
-                <select name="organismo_origen" class="w-100">
-                    <option value=""></option>
-                    <option value="1">PRIVADO</option>
-                    <option value="2" selected>PUBLICO</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="form-grid">
-            <div>
-                <label>Filtrar por:</label>
-                <div>
-                    <label><input type="radio" name="filtro_archivados" value="todos" checked> Todos</label>
-                    <label><input type="radio" name="filtro_archivados" value="solo_archivados"> Solo archivados</label>
-                    <label><input type="radio" name="filtro_archivados" value="excluir_archivados"> Excluir</label>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Nro. Expediente / Año:</label>
+                    <div class="input-group">
+                        <input type="text" name="nro_expediente" class="form-control" placeholder="Nro">
+                        <span class="input-group-text">/</span>
+                        <input type="text" name="anio" class="form-control" placeholder="Año">
+                        <span class="input-group-text">-</span>
+                        <input type="text" name="cmb_documental" class="form-control" placeholder="Inc">
+                    </div>
+                </div>
+                <div class="col-md-6 mt-3 mt-md-0">
+                    <label class="form-label fw-bold">Carátula:</label>
+                    <input type="text" name="texto" class="form-control text-uppercase">
                 </div>
             </div>
-            <div>
-                <label>Abogado:</label>
-                <select name="abogado" class="w-100">
-                    <option value=""></option>
-                    {% for ab_id, ab_name in abogados.items() %}
-                        <option value="{{ ab_id }}">{{ ab_name }}</option>
-                    {% endfor %}
-                </select>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Juicio:</label>
+                    <select name="juicio" class="form-select">
+                        <option value=""></option>
+                        {% for j_id, j_name in tipos_juicio.items() %}
+                            <option value="{{ j_id }}">{{ j_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 mt-3 mt-md-0">
+                    <label class="form-label fw-bold">Nivel de Acceso:</label>
+                    <select name="organismo_origen" class="form-select">
+                        <option value=""></option>
+                        <option value="1">PRIVADO</option>
+                        <option value="2" selected>PUBLICO</option>
+                    </select>
+                </div>
             </div>
-        </div>
 
-        <div class="fieldset-box">
-            <strong>Justiciable</strong>
-            <div class="flex-row-gap-10">
-                <input type="number" name="dnij" placeholder="DNI" class="flex-1">
-                <input type="text" name="apellidoj" placeholder="APELLIDO" class="flex-2 text-uppercase">
-                <input type="text" name="nombresj" placeholder="NOMBRES" class="flex-2 text-uppercase">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Filtrar por:</label>
+                    <div class="d-flex gap-3 align-items-center mt-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="filtro_archivados" value="todos" id="radTodos" checked>
+                            <label class="form-check-label" for="radTodos">Todos</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="filtro_archivados" value="solo_archivados" id="radArch">
+                            <label class="form-check-label" for="radArch">Archivados</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="filtro_archivados" value="excluir_archivados" id="radExcl">
+                            <label class="form-check-label" for="radExcl">Excluir</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mt-3 mt-md-0">
+                    <label class="form-label fw-bold">Abogado:</label>
+                    <select name="abogado" class="form-select">
+                        <option value=""></option>
+                        {% for ab_id, ab_name in abogados.items() %}
+                            <option value="{{ ab_id }}">{{ ab_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
-        </div>
 
-        <div class="form-grid">
-            <div class="fieldset-box">
-                <strong>Fecha Alta Desde</strong><br>
-                <select name="fecha_alta_dia_desde"><option value="0"></option>{% for i in range(1, 32) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
-                <select name="fecha_alta_mes_desde"><option value=""></option>{% for i in range(1, 13) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
-                <input type="text" name="fecha_alta_anio_desde" placeholder="Año" size="4">
+            <div class="card bg-body-secondary border-secondary mb-4">
+                <div class="card-body">
+                    <h6 class="card-title fw-bold">Justiciable</h6>
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <input type="number" name="dnij" class="form-control" placeholder="DNI">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" name="apellidoj" class="form-control text-uppercase" placeholder="APELLIDO">
+                        </div>
+                        <div class="col-md-5">
+                            <input type="text" name="nombresj" class="form-control text-uppercase" placeholder="NOMBRES">
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="fieldset-box">
-                <strong>Fecha Alta Hasta</strong><br>
-                <select name="fecha_alta_dia_hasta"><option value="0"></option>{% for i in range(1, 32) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
-                <select name="fecha_alta_mes_hasta"><option value=""></option>{% for i in range(1, 13) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select> /
-                <input type="text" name="fecha_alta_anio_hasta" placeholder="Año" size="4">
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card bg-body-secondary border-secondary">
+                        <div class="card-body">
+                            <h6 class="card-title fw-bold">Fecha Alta Desde</h6>
+                            <div class="input-group">
+                                <select name="fecha_alta_dia_desde" class="form-select"><option value="0">Día</option>{% for i in range(1, 32) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select>
+                                <span class="input-group-text">/</span>
+                                <select name="fecha_alta_mes_desde" class="form-select"><option value="">Mes</option>{% for i in range(1, 13) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select>
+                                <span class="input-group-text">/</span>
+                                <input type="text" name="fecha_alta_anio_desde" class="form-control" placeholder="Año">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mt-3 mt-md-0">
+                    <div class="card bg-body-secondary border-secondary">
+                        <div class="card-body">
+                            <h6 class="card-title fw-bold">Fecha Alta Hasta</h6>
+                            <div class="input-group">
+                                <select name="fecha_alta_dia_hasta" class="form-select"><option value="0">Día</option>{% for i in range(1, 32) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select>
+                                <span class="input-group-text">/</span>
+                                <select name="fecha_alta_mes_hasta" class="form-select"><option value="">Mes</option>{% for i in range(1, 13) %}<option value="{{ i }}">{{ "%02d"|format(i) }}</option>{% endfor %}</select>
+                                <span class="input-group-text">/</span>
+                                <input type="text" name="fecha_alta_anio_hasta" class="form-control" placeholder="Año">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <div id="dependencias-data" 
-             data-dependencias="{{ dependencias | tojson | forceescape }}" 
-             style="display: none;">
-        </div>
+            <div id="dependencias-data" 
+                 data-dependencias="{{ dependencias | tojson | forceescape }}" 
+                 style="display: none;">
+            </div>
 
-        <div id="estado-resultado-fase_busqueda_avanzada"
-             hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_busqueda_avanzada') }}"
-             hx-trigger="load, every 3s"
-             hx-swap="innerHTML">
-             {% with id_fase='fase_busqueda_avanzada', estado=estados_tareas['fase_busqueda_avanzada'] %}
-                 {% include '_fragmento_estado.html' with context %}
-             {% endwith %}
-        </div>
+            <div class="d-flex align-items-center justify-content-between">
+                <button type="submit" data-fase="fase_busqueda_avanzada" class="btn btn-success"
+                    {% if estados_tareas['fase_busqueda_avanzada'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                    Iniciar Búsqueda Avanzada
+                </button>
+                <div id="estado-resultado-fase_busqueda_avanzada"
+                     hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_busqueda_avanzada') }}"
+                     hx-trigger="load, every 3s"
+                     hx-swap="innerHTML">
+                     {% with id_fase='fase_busqueda_avanzada', estado=estados_tareas['fase_busqueda_avanzada'] %}
+                         {% include '_fragmento_estado.html' with context %}
+                     {% endwith %}
+                </div>
+            </div>
+        </form>
 
-        <button type="submit" data-fase="fase_busqueda_avanzada" class="btn-success"
-            {% if estados_tareas['fase_busqueda_avanzada'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
-            Iniciar Búsqueda Avanzada
-        </button>
-    </form>
-
-    <div class="section-divider">
+        <hr class="my-4">
+        
         <strong>Búsquedas Guardadas:</strong>
         <div class="csv-scroll-list" id="busquedas-list-container"
              hx-get="{{ url_for('fragmento_busquedas') }}"
