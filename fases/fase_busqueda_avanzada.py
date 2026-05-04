@@ -2,6 +2,7 @@ import os
 import session_manager
 import scraper_tasks
 import utils
+import db_manager
 from celery.utils.log import get_task_logger
 
 logger = get_task_logger(__name__)
@@ -16,9 +17,13 @@ def ejecutar_fase_busqueda_avanzada(cookies, username, filtros):
         nombre_archivo = utils.generar_nombre_busqueda_avanzada(filtros)
         
         if expedientes_filtrados:
+            # Mantener CSV para frontend
             utils.guardar_a_csv(
                 expedientes_filtrados, nombre_archivo, subdirectory=ruta_usuario
             )
+            # Base de Datos
+            db_manager.upsert_expedientes(username, expedientes_filtrados, origen="BUSQUEDA_AVANZADA")
+            
             logger.info(f"Búsqueda avanzada guardada como '{nombre_archivo}'. Total: {len(expedientes_filtrados)}")
             return {"status": "success", "count": len(expedientes_filtrados), "file": nombre_archivo}
         else:

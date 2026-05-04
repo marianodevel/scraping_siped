@@ -3,6 +3,7 @@ import time
 import scraper_tasks
 import utils
 import config
+import db_manager
 from utils import manejar_fase_con_sesion
 from celery.utils.log import get_task_logger
 
@@ -11,15 +12,11 @@ logger = get_task_logger(__name__)
 @manejar_fase_con_sesion("FASE ÚNICA: PROCESAR UN EXPEDIENTE")
 def ejecutar_fase_unico(session, nro_expediente_objetivo, username):
     ruta_usuario = utils.obtener_ruta_usuario(username)
-    ruta_csv_maestro = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
-    expedientes = utils.leer_csv_a_diccionario(ruta_csv_maestro)
     
-    if not expedientes:
-        return f"Error: No se encontró '{config.LISTA_EXPEDIENTES_CSV}'. Ejecute Fase 1 primero."
-        
-    expediente_data = next(
-        (e for e in expedientes if e["expediente"] == nro_expediente_objetivo), None
-    )
+    # Extraer de DB
+    expedientes = db_manager.obtener_expedientes(username, origen="PRIVADO")
+    expediente_data = next((e for e in expedientes if e["expediente"] == nro_expediente_objetivo), None)
+    
     if not expediente_data:
         return f"Error: El expediente '{nro_expediente_objetivo}' no se encontró en la lista maestra."
         
@@ -40,10 +37,10 @@ def ejecutar_fase_unico(session, nro_expediente_objetivo, username):
     
     if movimientos:
         utils.guardar_a_csv(movimientos, nombre_csv, subdirectory=dir_movimientos)
+        db_manager.upsert_movimientos(expediente_data["id"], movimientos)
     else:
-        logger.info("  > No se encontraron movimientos nuevos, buscando local...")
-        ruta_csv = os.path.join(dir_movimientos, nombre_csv)
-        movimientos = utils.leer_csv_a_diccionario(ruta_csv)
+        logger.info("  > No se encontraron movimientos nuevos, buscando local/DB...")
+        movimientos = db_manager.obtener_movimientos(expediente_data["id"])
         
     if not movimientos:
         return f"Finalizado sin datos: No hay movimientos para {nro_expediente_objetivo}."

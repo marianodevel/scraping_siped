@@ -11,7 +11,7 @@ services:
 
   web:
     build: .
-    image: scraping_siped_app:latest # Nombre de imagen compartido
+    image: scraping_siped_app:latest
     container_name: siped_web
     restart: unless-stopped
     ports:
@@ -30,7 +30,7 @@ services:
           memory: 512M
 
   worker:
-    image: scraping_siped_app:latest # Usa la imagen construida por 'web'
+    image: scraping_siped_app:latest
     container_name: siped_worker
     restart: unless-stopped
     command: celery -A tasks.celery_app worker --loglevel=info
@@ -45,7 +45,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G # Los workers suelen requerir más memoria procesando PDFs
+          memory: 1G
 
 volumes:
   shared_data:

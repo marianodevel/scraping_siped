@@ -3,6 +3,7 @@ import time
 import scraper_tasks
 import utils
 import config
+import db_manager
 from utils import manejar_fase_con_sesion
 from celery.utils.log import get_task_logger
 
@@ -11,11 +12,12 @@ logger = get_task_logger(__name__)
 @manejar_fase_con_sesion("FASE 3: OBTENER DOCUMENTOS PDF Y CONSOLIDAR")
 def ejecutar_fase_3_documentos(session, username):
     ruta_usuario = utils.obtener_ruta_usuario(username)
-    ruta_csv_maestro = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
     
-    expedientes_a_procesar = utils.leer_csv_a_diccionario(ruta_csv_maestro)
+    # Obtenemos directamente de la base de datos
+    expedientes_a_procesar = db_manager.obtener_expedientes(username, origen="PRIVADO")
+    
     if not expedientes_a_procesar:
-        mensaje = "Error: No se encontró el archivo maestro. Ejecute Fase 1 primero."
+        mensaje = "Error: No se encontraron expedientes en la BD. Ejecute Fase 1 primero."
         logger.error(mensaje)
         return mensaje
         
@@ -37,12 +39,17 @@ def ejecutar_fase_3_documentos(session, username):
         ruta_carpeta_expediente = os.path.join(dir_docs, nombre_carpeta_expediente)
         os.makedirs(ruta_carpeta_expediente, exist_ok=True)
         
-        nombre_csv = f"{nro} - {caratula}.csv"
-        ruta_csv = os.path.join(dir_movimientos, nombre_csv)
-        movimientos = utils.leer_csv_a_diccionario(ruta_csv)
+        # Leer desde DB, con fallback a CSV
+        movimientos = db_manager.obtener_movimientos(expediente["id"])
         
         if not movimientos:
-            logger.warning(f"  > No se encontró CSV de movimientos para {nro_expediente}. Ejecute Fase 2.")
+            nombre_csv = f"{nro} - {caratula}.csv"
+            ruta_csv = os.path.join(dir_movimientos, nombre_csv)
+            if os.path.exists(ruta_csv):
+                movimientos = utils.leer_csv_a_diccionario(ruta_csv)
+        
+        if not movimientos:
+            logger.warning(f"  > No se encontraron movimientos en BD ni CSV para {nro_expediente}. Ejecute Fase 2.")
             continue
             
         logger.info(f"  > Iniciando procesamiento de {len(movimientos)} movimientos...")
@@ -69,7 +76,7 @@ def ejecutar_fase_3_documentos(session, username):
                                 "nombre": nombre_pdf_main,
                                 "tipo": "Principal",
                             })
-                            
+                        
                         adjuntos = datos_documento.get("adjuntos", [])
                         if adjuntos:
                             for idx, adj in enumerate(adjuntos):
@@ -82,7 +89,7 @@ def ejecutar_fase_3_documentos(session, username):
                                     "nombre": nombre_archivo_adj,
                                     "tipo": f"Adjunto {idx + 1}",
                                 })
-                                
+                        
                         if pdfs_a_descargar:
                             logger.info(f"    > Doc {id_correlativo}: Encontrados {len(pdfs_a_descargar)} PDFs.")
                             for pdf_info in pdfs_a_descargar:
@@ -98,7 +105,7 @@ def ejecutar_fase_3_documentos(session, username):
                     logger.error(f"    > !!! ERROR (Doc {id_correlativo}) en {nro_expediente}: {e}", exc_info=True)
                     
         logger.info(f"  > Descarga finalizada para {nro_expediente}. (Nuevos: {total_pdfs_descargados})")
-        
+
         nombre_pdf_final = f"{nombre_carpeta_expediente} (Consolidado).pdf"
         ruta_pdf_final = os.path.join(dir_docs, nombre_pdf_final)
         archivos_existentes_en_carpeta = [

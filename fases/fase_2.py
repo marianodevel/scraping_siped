@@ -2,6 +2,7 @@ import os
 import scraper_tasks
 import utils
 import config
+import db_manager
 from utils import manejar_fase_con_sesion
 from celery.utils.log import get_task_logger
 
@@ -10,11 +11,12 @@ logger = get_task_logger(__name__)
 @manejar_fase_con_sesion("FASE 2: OBTENER MOVIMIENTOS")
 def ejecutar_fase_2_movimientos(session, username):
     ruta_usuario = utils.obtener_ruta_usuario(username)
-    ruta_csv_maestro = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
     
-    expedientes_a_procesar = utils.leer_csv_a_diccionario(ruta_csv_maestro)
+    # Leer maestro desde la DB
+    expedientes_a_procesar = db_manager.obtener_expedientes(username, origen="PRIVADO")
+    
     if not expedientes_a_procesar:
-        mensaje = f"Error: No se encontró el archivo maestro '{config.LISTA_EXPEDIENTES_CSV}' en {ruta_usuario}. Ejecute Fase 1 primero."
+        mensaje = f"Error: No se encontraron expedientes en la base de datos para {username}. Ejecute Fase 1 primero."
         logger.error(mensaje)
         return mensaje
         
@@ -32,28 +34,32 @@ def ejecutar_fase_2_movimientos(session, username):
         nro = utils.limpiar_nombre_archivo(expediente.get("expediente"))
         caratula = utils.limpiar_nombre_archivo(expediente.get("caratula"))
         nombre_archivo = f"{nro} - {caratula}.csv"
-        ruta_archivo = os.path.join(dir_movimientos, nombre_archivo)
         
-        if os.path.exists(ruta_archivo):
-            logger.info(f"  > Ya existe '{nombre_archivo}', saltando.")
-            continue
+        # Eliminamos la condición que saltaba el scraping si el archivo existía
+        # para forzar SIEMPRE la actualización de los movimientos.
+        logger.info(f"  > Extrayendo/Actualizando historial de '{nombre_archivo}'...")
             
         try:
             movimientos = scraper_tasks.raspar_movimientos_de_expediente(
                 session, expediente
             )
             if movimientos:
+                # Al guardar el CSV, se sobrescribirá el archivo anterior actualizándolo por completo
                 utils.guardar_a_csv(
                     movimientos,
                     nombre_archivo,
                     subdirectory=dir_movimientos,
                 )
+                
+                # La BD procesará la lista y solo insertará los movimientos que no existan previamente
+                db_manager.upsert_movimientos(expediente["id"], movimientos)
+                
                 contador_movimientos += len(movimientos)
-                logger.info(f"  > Guardados {len(movimientos)} movimientos.")
+                logger.info(f"  > Guardados/Actualizados {len(movimientos)} movimientos.")
             else:
                 logger.info("  > No se encontraron movimientos.")
         except Exception as e:
             logger.error(f"  > !!! ERROR al procesar {nro_expediente}: {e}", exc_info=True)
 
-    mensaje = f"Proceso de movimientos completado. Total descargados (nuevos): {contador_movimientos}"
+    mensaje = f"Proceso de actualización de movimientos completado. Movimientos analizados: {contador_movimientos}"
     return mensaje
