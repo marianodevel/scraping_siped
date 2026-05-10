@@ -1,0 +1,43 @@
+<div class="card mb-4 shadow-sm border-success" id="fase_unico-container">
+    <div class="card-header py-3 bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Descarga de Expediente</h5>
+    </div>
+    
+    <div class="card-body p-4">
+        <p class="card-text text-muted mb-4">Seleccione un expediente para descargar su PDF consolidado.</p>
+
+        <form hx-post="{{ url_for('iniciar_descarga_unico') }}" 
+              hx-target="#flash-messages" 
+              hx-swap="innerHTML" class="mb-0">
+            
+            {% if expedientes_disponibles %}
+                <div class="input-group mb-3">
+                    <select name="expediente_seleccionado" class="form-select border-success" required>
+                        <option value="" disabled selected>-- Seleccione un Expediente --</option>
+                        {% for exp in expedientes_disponibles %}
+                            <option value="{{ exp.expediente }}">{{ exp.expediente }} - {{ exp.caratula }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" data-fase="fase_unico" class="btn btn-success fw-bold"
+                        {% if estados_tareas['fase_unico'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                        Descargar PDF
+                    </button>
+                </div>
+            {% else %}
+                <div class="alert alert-warning py-2 mb-3">
+                    <em>No hay lista de expedientes cargada. Obtenga la Lista Maestra primero.</em>
+                </div>
+            {% endif %}
+
+            <div id="estado-resultado-fase_unico"
+                 class="mt-3"
+                 hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_unico') }}" 
+                 hx-trigger="load, every 3s" 
+                 hx-swap="innerHTML">
+                 {% with estado=estados_tareas['fase_unico'] %}
+                    {% include '_fragmento_estado.html' with context %}
+                 {% endwith %}
+            </div>
+        </form>
+    </div>
+</div>

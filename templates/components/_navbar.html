@@ -1,0 +1,9 @@
+<nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom mb-4 shadow-sm">
+    <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">Gestor SIPED</span>
+        <div class="d-flex align-items-center">
+            <span class="me-3"><strong>Usuario:</strong> {{ username | default('N/A') }}</span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm">Cerrar Sesión</a>
+        </div>
+    </div>
+</nav>
