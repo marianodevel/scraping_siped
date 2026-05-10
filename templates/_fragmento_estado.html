@@ -1,20 +1,59 @@
-<div class="fase-control">
-  <div id="estado-{{ id_fase }}">
-    Estado:
-    <span class="status-badge status-{{ estado.estado }}"
-      >{{ estado.estado }}</span
-    >
-  </div>
-</div>
-<div class="fase-info">
-  Resultado: {{ estado.resultado or '...' }}
-  <br /><a
-    href="{{ url_for('resetear_estado', nombre_fase=id_fase) }}"
-    hx-get="{{ url_for('resetear_estado', nombre_fase=id_fase) }}"
-    hx-target="#flash-messages"
-    hx-swap="outerHTML"
-    hx-trigger="click"
-    style="font-size: 0.8em"
-    >Resetear Estado (Solo si falló)</a
-  >
-</div>
+{% if estado.estado != 'IDLE' %}
+    <div class="d-flex flex-column align-items-end">
+        <div class="small">
+            <span class="badge {% if estado.estado == 'SUCCESS' %}bg-success{% elif estado.estado == 'FAILURE' %}bg-danger{% else %}bg-primary{% endif %}">
+                {{ estado.estado }}
+            </span>
+            <span class="text-muted ms-2">{{ estado.resultado }}</span>
+        </div>
+        
+        {% if estado.estado in ['FAILURE', 'REVOKED'] %}
+            <div class="mt-1">
+                <a href="javascript:void(0)" 
+                   hx-get="{{ url_for('resetear_estado', nombre_fase=id_fase) }}" 
+                   hx-target="#flash-messages" 
+                   class="btn btn-link btn-sm p-0 text-danger text-decoration-none">
+                    Limpiar Error
+                </a>
+            </div>
+        {% endif %}
+
+        {% if estado.estado == 'SUCCESS' %}
+            <script>
+                (function() {
+                    const fase = "{{ id_fase }}";
+                    const flagName = 'siped_auto_dl_' + fase;
+                    
+                    // Bloqueo de seguridad para evitar que el ciclo de HTMX dispare esto múltiples veces
+                    if (!window[flagName]) {
+                        window[flagName] = true;
+                        
+                        // 1. Accion Principal: Auto-descarga basada en la fase
+                        if (fase === "fase_1") {
+                            window.location.href = "{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}";
+                        } else if (fase === "fase_publica") {
+                            window.location.href = "{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_publicos.csv') }}";
+                        } else if (fase === "fase_unico") {
+                            // Para descargas dinamicas, re-enviamos silenciosamente el form. 
+                            // Como el archivo ya existe, app.py respondera inmediatamente con una redireccion (HX-Redirect) al archivo.
+                            let btn = document.querySelector('button[data-fase="' + fase + '"]');
+                            if (btn && btn.closest('form')) htmx.trigger(btn.closest('form'), 'submit');
+                        }
+                        
+                        // 2. Limpieza de UI: Resetear la tarea a IDLE tras 2.5 segundos
+                        setTimeout(() => {
+                            htmx.ajax('GET', '{{ url_for("resetear_estado", nombre_fase=id_fase) }}', {target: '#flash-messages', swap: 'innerHTML'});
+                            window[flagName] = false; // Liberar flag
+                            
+                            // Si es una fase de múltiples archivos (como los movimientos), recargamos la pagina
+                            // para actualizar el dropdown nativamente.
+                            if (fase === "fase_2" || fase === "fase_descarga_publica") {
+                                location.reload();
+                            }
+                        }, 2500);
+                    }
+                })();
+            </script>
+        {% endif %}
+    </div>
+{% endif %}

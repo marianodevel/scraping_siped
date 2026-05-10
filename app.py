@@ -1,4 +1,4 @@
-# scraping_siped/app.py
+# app.py
 from flask import (
     Flask,
     render_template,
@@ -37,18 +37,19 @@ from catalogos.tipos_juicio import TIPOS_JUICIO
 from catalogos.abogados import ABOGADOS
 from catalogos.dependencias import DEPENDENCIAS_POR_LOCALIDAD
 
+# Importamos SQLAlchemyError para capturar el bloqueo de SQLite
+from sqlalchemy.exc import SQLAlchemyError
+
 app = Flask(__name__)
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "desarrollo-secreto-cambiar-en-prod-MUY-SECRETO")
 
 class LoginForm(FlaskForm):
-    """Formulario de inicio de sesion para el sistema intranet."""
     username = StringField("Usuario (Intranet)", validators=[DataRequired()])
     password = PasswordField("Contraseña", validators=[DataRequired()])
     submit = SubmitField("Iniciar Sesión")
 
 def login_required(f):
-    """Decorador para proteger rutas que requieren sesion activa."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "siped_cookies" not in session:
@@ -59,7 +60,6 @@ def login_required(f):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Ruta de autenticacion del usuario."""
     if "siped_cookies" in session:
         return redirect(url_for("indice"))
              
@@ -86,7 +86,6 @@ def login():
 @app.route("/logout")
 @login_required
 def logout():
-    """Ruta para cerrar sesion."""
     username = session.get('username')
     session.pop("siped_cookies", None)
     session.pop("username", None)
@@ -96,13 +95,11 @@ def logout():
 
 @app.route("/fragmento/mensajes")
 def fragmento_mensajes():
-    """Retorna el fragmento HTML con los mensajes flash actuales."""
     return render_template("_fragmento_mensajes.html")
 
 @app.route("/")
 @login_required
 def indice():
-    """Ruta principal que renderiza el tablero de control."""
     usuario = session.get("username")
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
 
@@ -155,7 +152,6 @@ def indice():
 @app.route("/iniciar/<nombre_fase>", methods=["POST"])
 @login_required
 def iniciar_fase(nombre_fase):
-    """Inicia una tarea asincronica para una fase estandar."""
     mapa_tareas = {
         "fase_1": fase_1_lista_task,
         "fase_2": fase_2_movimientos_task,
@@ -190,7 +186,6 @@ def iniciar_fase(nombre_fase):
 @app.route("/iniciar_descarga_unico", methods=["POST"])
 @login_required
 def iniciar_descarga_unico():
-    """Inicia la extraccion asincronica de un expediente unico."""
     nro_expediente = request.form.get("expediente_seleccionado")
     nombre_fase = "fase_unico"
          
@@ -201,8 +196,12 @@ def iniciar_descarga_unico():
     usuario = session["username"]
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
 
-    expedientes = db_manager.obtener_expedientes(usuario, origen="PRIVADO")
-    expediente_data = next((e for e in expedientes if e["expediente"] == nro_expediente), None)
+    try:
+        expedientes = db_manager.obtener_expedientes(usuario, origen="PRIVADO")
+        expediente_data = next((e for e in expedientes if e["expediente"] == nro_expediente), None)
+    except SQLAlchemyError as e:
+        app.logger.warning(f"Error accediendo a la BD durante descarga_unico: {e}")
+        expediente_data = None
 
     if not expediente_data:
         ruta_csv = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
@@ -248,7 +247,6 @@ def iniciar_descarga_unico():
 @app.route("/iniciar_busqueda_avanzada", methods=["POST"])
 @login_required
 def iniciar_busqueda_avanzada():
-    """Inicia el proceso asincronico de busqueda avanzada."""
     nombre_fase = "fase_busqueda_avanzada"
     estado_actual = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
@@ -273,9 +271,16 @@ def iniciar_busqueda_avanzada():
 @app.route("/fragmento/opciones_busqueda_avanzada")
 @login_required
 def opciones_busqueda_avanzada():
-    """Retorna las opciones HTML correspondientes a los resultados de busqueda avanzada."""
     usuario = session.get("username")
-    expedientes = db_manager.obtener_expedientes(usuario, origen="BUSQUEDA_AVANZADA")
+    
+    try:
+        expedientes = db_manager.obtener_expedientes(usuario, origen="BUSQUEDA_AVANZADA")
+    except SQLAlchemyError as e:
+        app.logger.warning(f"La base de datos está ocupada (lock) por otra tarea: {e}")
+        # Si la base de datos esta bloqueada, devolvemos un mensaje temporal
+        # HTMX lo mostrara y volvera a intentar en 10 segundos
+        return '<option value="">Base de datos ocupada. Reintentando...</option>'
+
     opciones = ['<option value="">Seleccione un expediente...</option>']
     for exp in expedientes:
         val = exp.get("link_detalle", "")
@@ -286,7 +291,6 @@ def opciones_busqueda_avanzada():
 @app.route("/iniciar_descarga_publico", methods=["POST"])
 @login_required
 def iniciar_descarga_publico():
-    """Inicia la descarga asincronica de un expediente originado de una busqueda publica."""
     link_detalle = request.form.get("link_detalle_seleccionado")
     nombre_fase = "fase_descarga_publica"
     
@@ -316,7 +320,6 @@ def iniciar_descarga_publico():
 @app.route("/resetear_estado/<nombre_fase>")
 @login_required
 def resetear_estado(nombre_fase):
-    """Restablece manualmente el estado de una tarea."""
     gestor_tareas.resetear_id_tarea(nombre_fase)
     app.logger.info(f"Estado de tarea reseteado manualmente: {nombre_fase}")
     flash(f"Estado de {nombre_fase} reseteado manualmente.", "info")
@@ -325,7 +328,6 @@ def resetear_estado(nombre_fase):
 @app.route("/fragmento/estado/<nombre_fase>")
 @login_required
 def fragmento_estado(nombre_fase):
-    """Consulta y retorna el estado actual de una tarea asincronica."""
     estado = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
     )
@@ -334,7 +336,6 @@ def fragmento_estado(nombre_fase):
 @app.route("/fragmento/pdfs")
 @login_required
 def fragmento_pdfs():
-    """Retorna la lista actualizada de archivos PDF descargados."""
     usuario = session.get("username")
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
     return render_template("_fragmento_pdfs.html", archivos_pdf=lista_pdf)
@@ -342,7 +343,6 @@ def fragmento_pdfs():
 @app.route("/fragmento/busquedas")
 @login_required
 def fragmento_busquedas():
-    """Retorna la lista actualizada de archivos de busqueda generados."""
     usuario = session.get("username")
     lista_busquedas = gestor_almacenamiento.listar_archivos_busqueda(usuario)
     return render_template("_fragmento_busquedas.html", lista_busquedas=lista_busquedas)
@@ -350,7 +350,6 @@ def fragmento_busquedas():
 @app.route("/descargar/<tipo>/<nombre_archivo>")
 @login_required
 def descargar_archivo(tipo, nombre_archivo):
-    """Procesa la descarga directa de un archivo almacenado localmente."""
     usuario = session.get("username")
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
     directorio = None

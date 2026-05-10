@@ -6,13 +6,12 @@
         <p class="card-text text-muted mb-4">Extrae todos los expedientes públicos disponibles en la localidad configurada.</p>
         <div class="d-flex align-items-center justify-content-between">
             <form hx-post="{{ url_for('iniciar_fase', nombre_fase='fase_publica') }}" hx-target="#flash-messages" hx-swap="innerHTML" class="m-0">
-                <button type="submit" data-fase="fase_publica" class="btn btn-primary"
+                <button type="submit" class="btn btn-primary"
                     {% if estados_tareas['fase_publica'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
                     Iniciar Búsqueda
                 </button>
             </form>
             <div id="estado-resultado-fase_publica" 
-                 class="mt-3 mt-md-0"
                  hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_publica') }}" 
                  hx-trigger="load, every 3s" 
                  hx-swap="innerHTML">
