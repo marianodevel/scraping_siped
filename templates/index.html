@@ -15,25 +15,16 @@
 {% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col">
-        <h2>Panel de Control Automático</h2>
-        <p class="text-muted">La aplicación utiliza Celery para ejecutar las tareas de extracción en segundo plano.</p>
-    </div>
-</div>
-
 <div class="row">
-    <div class="col-xl-6 mb-4">
-        <h4 class="mb-3 border-bottom pb-2">Herramientas de Consulta</h4>
-        
+    <div class="col-xl-6">
         {% include '_fragmento_busqueda_avanzada.html' %}
         
-        <div class="card mb-4 border-info" id="fase_publica-container">
-            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <div class="card mb-4 shadow-sm border-info" id="fase_publica-container">
+            <div class="card-header py-3 bg-info text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Búsqueda Masiva Pública</h5>
             </div>
-            <div class="card-body">
-                <p class="text-muted">Extrae todos los expedientes públicos disponibles en la localidad configurada.</p>
+            <div class="card-body p-4">
+                <p class="card-text text-muted mb-4">Extrae todos los expedientes públicos disponibles en la localidad configurada.</p>
                 <div class="d-flex align-items-center justify-content-between">
                     <form hx-post="{{ url_for('iniciar_fase', nombre_fase='fase_publica') }}" hx-target="#flash-messages" hx-swap="innerHTML" class="m-0">
                         <button type="submit" data-fase="fase_publica" class="btn btn-info text-white"
@@ -42,6 +33,7 @@
                         </button>
                     </form>
                     <div id="estado-resultado-fase_publica" 
+                         class="mt-3 mt-md-0"
                          hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_publica') }}" 
                          hx-trigger="load, every 3s" 
                          hx-swap="innerHTML">
@@ -54,34 +46,33 @@
         </div>
     </div>
 
-    <div class="col-xl-6 mb-4">
-        <h4 class="mb-3 border-bottom pb-2">Flujo de Trabajo (Bandeja Privada)</h4>
-
-        {% set fases = [
+    <div class="col-xl-6">
+        {% set acciones = [
             ('fase_1', 'Obtener Lista Maestra (CSV)', 'Descarga la lista completa de expedientes y guarda el archivo maestro <code>expedientes_completos.csv</code>.', 'secondary'),
-            ('fase_2', 'Descargar Movimientos (CSVs)', 'Requiere Fase 1. Descarga los movimientos para cada expediente y los guarda en <code>movimientos_expedientes/*.csv</code>.', 'warning')
+            ('fase_2', 'Descargar Movimientos (CSVs)', 'Requiere Obtener Lista Maestra. Descarga los movimientos para cada expediente y los guarda en <code>movimientos_expedientes/*.csv</code>.', 'warning')
         ] %}
 
-        {% for id_fase, titulo, descripcion, theme in fases %}
-        <div class="card mb-4 border-{{ theme }}" id="{{ id_fase }}-container">
-            <div class="card-header bg-{{ theme }} text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Fase {{ id_fase.split('_')[1] | upper }}: {{ titulo }}</h5>
+        {% for id_fase, titulo, descripcion, theme in acciones %}
+        <div class="card mb-4 shadow-sm border-{{ theme }}" id="{{ id_fase }}-container">
+            <div class="card-header py-3 bg-{{ theme }} text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ titulo }}</h5>
             </div>
             
-            <div class="card-body">
-                <p class="card-text text-muted">{{ descripcion | safe }}</p>
+            <div class="card-body p-4">
+                <p class="card-text text-muted mb-4">{{ descripcion | safe }}</p>
                 
-                <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center justify-content-between">
                     <form hx-post="{{ url_for('iniciar_fase', nombre_fase=id_fase) }}" 
                           hx-target="#flash-messages" 
                           hx-swap="innerHTML" class="m-0">
                         <button type="submit" data-fase="{{ id_fase }}" class="btn btn-{{ theme }}"
                             {% if estados_tareas[id_fase].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
-                            Iniciar Fase {{ id_fase.split('_')[1] }}
+                            Iniciar Acción
                         </button>
                     </form>
 
                     <div id="estado-resultado-{{ id_fase }}" 
+                         class="mt-3 mt-md-0"
                          hx-get="{{ url_for('fragmento_estado', nombre_fase=id_fase) }}" 
                          hx-trigger="load, every 3s" 
                          hx-swap="innerHTML">
@@ -92,40 +83,44 @@
                 </div>
 
                 {% if id_fase == 'fase_1' and existe_maestro %}
-                    <hr class="my-3">
-                    <strong>Archivo Generado:</strong><br>
-                    <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}" class="text-decoration-none">
-                        Descargar Lista Maestra (.csv)
-                    </a>
+                    <hr class="mt-4 mb-3">
+                    <div class="mt-2">
+                        <strong>Archivo Generado:</strong><br>
+                        <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}" class="text-decoration-none">
+                            Descargar Lista Maestra (.csv)
+                        </a>
+                    </div>
                 {% endif %}
 
                 {% if id_fase == 'fase_2' and lista_movimientos %}
-                    <hr class="my-3">
-                    <strong>Movimientos Descargados ({{ lista_movimientos|length }}):</strong>
-                    <div class="input-group mt-2">
-                        <select class="form-select border-{{ theme }}" id="select_{{ id_fase }}">
-                            <option value="" disabled selected>-- Seleccione un archivo CSV --</option>
-                            {% for mov_csv in lista_movimientos %}
-                                <option value="{{ url_for('descargar_archivo', tipo='movimientos', nombre_archivo=mov_csv) }}">{{ mov_csv }}</option>
-                            {% endfor %}
-                        </select>
-                        <button class="btn btn-{{ theme }} fw-bold text-dark" type="button" 
-                                onclick="const url = document.getElementById('select_{{ id_fase }}').value; if(url) window.location.href=url;">
-                            Descargar
-                        </button>
+                    <hr class="mt-4 mb-3">
+                    <div class="mt-2">
+                        <strong>Movimientos Descargados ({{ lista_movimientos|length }}):</strong>
+                        <div class="input-group mt-2">
+                            <select class="form-select border-{{ theme }}" id="select_{{ id_fase }}">
+                                <option value="" disabled selected>-- Seleccione un archivo CSV --</option>
+                                {% for mov_csv in lista_movimientos %}
+                                    <option value="{{ url_for('descargar_archivo', tipo='movimientos', nombre_archivo=mov_csv) }}">{{ mov_csv }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-{{ theme }} fw-bold text-dark" type="button" 
+                                    onclick="const url = document.getElementById('select_{{ id_fase }}').value; if(url) window.location.href=url;">
+                                Descargar
+                            </button>
+                        </div>
                     </div>
                 {% endif %}
             </div>
         </div>
         {% endfor %}
 
-        <div class="card mb-4 border-danger" id="fase_unico-container">
-            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Fase 3: Descarga de Expediente</h5>
+        <div class="card mb-4 shadow-sm border-danger" id="fase_unico-container">
+            <div class="card-header py-3 bg-danger text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Descarga de Expediente</h5>
             </div>
             
-            <div class="card-body">
-                <p class="card-text text-muted">Seleccione un expediente para descargar su PDF. Si no está consolidado, el sistema lo procesará automáticamente en segundo plano.</p>
+            <div class="card-body p-4">
+                <p class="card-text text-muted mb-4">Seleccione un expediente para descargar su PDF. Si no está consolidado, el sistema lo procesará automáticamente en segundo plano.</p>
 
                 <form hx-post="{{ url_for('iniciar_descarga_unico') }}" 
                       hx-target="#flash-messages" 
@@ -146,11 +141,12 @@
                         </div>
                     {% else %}
                         <div class="alert alert-warning py-2 mb-3">
-                            <em>No hay lista de expedientes cargada. Ejecute la Fase 1 primero.</em>
+                            <em>No hay lista de expedientes cargada. Obtenga la Lista Maestra primero.</em>
                         </div>
                     {% endif %}
 
                     <div id="estado-resultado-fase_unico"
+                         class="mt-3"
                          hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_unico') }}" 
                          hx-trigger="load, every 3s" 
                          hx-swap="innerHTML">
@@ -161,7 +157,6 @@
                 </form>
             </div>
         </div>
-
     </div>
 </div>
 {% endblock %}
