@@ -3,8 +3,14 @@
         <h5 class="mb-0">Descarga de Expediente</h5>
     </div>
     <div class="card-body p-4">
-        <p class="card-text text-muted mb-4">Genera o descarga el PDF consolidado del expediente seleccionado.</p>
-        <form hx-post="{{ url_for('iniciar_descarga_unico') }}" hx-target="#flash-messages" hx-swap="innerHTML" class="m-0">
+        <p class="card-text text-muted mb-4">Seleccione un expediente para descargar su PDF consolidado. Si no está consolidado, el sistema lo procesará automáticamente en segundo plano.</p>
+        
+        <form hx-post="{{ url_for('iniciar_descarga_unico') }}" 
+              hx-target="#flash-messages" 
+              hx-swap="innerHTML" 
+              hx-indicator="#spinner-fase-unico" 
+              class="mb-0">
+            
             {% if expedientes_disponibles %}
                 <div class="input-group mb-3">
                     <select name="expediente_seleccionado" class="form-select border-primary" required>
@@ -13,18 +19,26 @@
                             <option value="{{ exp.expediente }}">{{ exp.expediente }} - {{ exp.caratula }}</option>
                         {% endfor %}
                     </select>
-                    <button type="submit" class="btn btn-primary fw-bold">Descargar PDF</button>
+                    <button type="submit" data-fase="fase_unico" class="btn btn-primary fw-bold"
+                        {% if estados_tareas['fase_unico'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                        <span class="htmx-indicator spinner-border spinner-border-sm me-1" id="spinner-fase-unico" role="status" aria-hidden="true"></span>
+                        Descargar PDF
+                    </button>
                 </div>
             {% else %}
-                <div class="alert alert-warning py-2">
-                    <em>No hay lista de expedientes cargada.</em>
+                <div class="text-center p-4 bg-body-secondary rounded mb-3 border border-secondary border-opacity-25">
+                    <i class="bi bi-file-earmark-x text-secondary fs-1"></i>
+                    <h6 class="text-muted mt-3 mb-1">No hay expedientes cargados</h6>
+                    <small class="text-muted">Sincronice la Lista Maestra primero para habilitar la descarga individual.</small>
                 </div>
             {% endif %}
-            <div id="estado-resultado-fase_unico" 
+
+            <div id="estado-resultado-fase_unico"
+                 class="mt-3"
                  hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_unico') }}" 
                  hx-trigger="load, every 3s" 
                  hx-swap="innerHTML">
-                 {% with estado=estados_tareas['fase_unico'] %}
+                 {% with id_fase='fase_unico', estado=estados_tareas['fase_unico'] %}
                     {% include '_fragmento_estado.html' with context %}
                  {% endwith %}
             </div>

@@ -6,7 +6,11 @@
     <div class="card-body p-4">
         <p class="card-text text-muted mb-4">Realiza una búsqueda con múltiples filtros y descarga los resultados.</p>
         
-        <form hx-post="{{ url_for('iniciar_busqueda_avanzada') }}" hx-target="#flash-messages" hx-swap="innerHTML" class="mb-0">
+        <form hx-post="{{ url_for('iniciar_busqueda_avanzada') }}" 
+              hx-target="#flash-messages" 
+              hx-swap="innerHTML" 
+              hx-indicator="#spinner-busqueda-avanzada"
+              class="mb-0">
             
             <div class="row mb-3">
                 <div class="col-md-6">
@@ -140,14 +144,13 @@
                 </div>
             </div>
 
-            <div id="dependencias-data" 
-                 data-dependencias="{{ dependencias | tojson | forceescape }}" 
-                 style="display: none;">
+            <div id="dependencias-data" class="d-none" data-dependencias="{{ dependencias | tojson | forceescape }}">
             </div>
 
             <div class="d-flex align-items-center justify-content-between">
                 <button type="submit" data-fase="fase_busqueda_avanzada" class="btn btn-primary"
                     {% if estados_tareas['fase_busqueda_avanzada'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                    <span class="htmx-indicator spinner-border spinner-border-sm me-1" id="spinner-busqueda-avanzada" role="status" aria-hidden="true"></span>
                     Realizar Búsqueda
                 </button>
                 <div id="estado-resultado-fase_busqueda_avanzada"
@@ -167,7 +170,11 @@
         <div class="card bg-body-secondary border-secondary mb-3">
             <div class="card-body p-4">
                 <h6 class="card-title fw-bold mb-3">Resultados de Búsqueda</h6>
-                <form hx-post="{{ url_for('iniciar_descarga_publico') }}" hx-target="#flash-messages" hx-swap="innerHTML" class="m-0">
+                <form hx-post="{{ url_for('iniciar_descarga_publico') }}" 
+                      hx-target="#flash-messages" 
+                      hx-swap="innerHTML" 
+                      hx-indicator="#spinner-descarga-publica"
+                      class="m-0">
                     <div class="row align-items-start">
                         <div class="col-md-7">
                             <select name="link_detalle_seleccionado" class="form-select border-primary"
@@ -180,6 +187,7 @@
                         <div class="col-md-5 mt-3 mt-md-0 d-flex flex-column">
                             <button type="submit" class="btn btn-primary w-100"
                                 {% if estados_tareas['fase_descarga_publica'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                                <span class="htmx-indicator spinner-border spinner-border-sm me-1" id="spinner-descarga-publica" role="status" aria-hidden="true"></span>
                                 Descargar PDF
                             </button>
                             <div id="estado-resultado-fase_descarga_publica" class="mt-2 text-center"

@@ -5,26 +5,35 @@
     <div class="card-body p-4">
         <p class="card-text text-muted mb-4">Descarga la lista completa de expedientes vinculados a tu cuenta.</p>
         <div class="d-flex align-items-center justify-content-between">
-            <form hx-post="{{ url_for('iniciar_fase', nombre_fase='fase_1') }}" hx-target="#flash-messages" hx-swap="innerHTML" class="m-0">
-                <button type="submit" class="btn btn-primary"
+            <form hx-post="{{ url_for('iniciar_fase', nombre_fase='fase_1') }}" 
+                  hx-target="#flash-messages" 
+                  hx-swap="innerHTML" 
+                  hx-indicator="#spinner-fase-1"
+                  class="m-0">
+                <button type="submit" data-fase="fase_1" class="btn btn-primary"
                     {% if estados_tareas['fase_1'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                    <span class="htmx-indicator spinner-border spinner-border-sm me-1" id="spinner-fase-1" role="status" aria-hidden="true"></span>
                     Sincronizar Datos
                 </button>
             </form>
             <div id="estado-resultado-fase_1" 
+                 class="mt-3 mt-md-0"
                  hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_1') }}" 
                  hx-trigger="load, every 3s" 
                  hx-swap="innerHTML">
-                 {% with estado=estados_tareas['fase_1'] %}
+                 {% with id_fase='fase_1', estado=estados_tareas['fase_1'] %}
                     {% include '_fragmento_estado.html' with context %}
                  {% endwith %}
             </div>
         </div>
         {% if existe_maestro %}
             <hr class="mt-4 mb-3">
-            <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}" class="text-decoration-none">
-                Descargar Lista Maestra (.csv)
-            </a>
+            <div class="mt-2">
+                <strong>Archivo Generado:</strong><br>
+                <a href="{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}" class="text-decoration-none">
+                    Descargar Lista Maestra (.csv)
+                </a>
+            </div>
         {% endif %}
     </div>
 </div>

@@ -1,24 +1,46 @@
-/* static/css/style.css */
+/* ==========================================================================
+   Gestor SIPED - Estilos Centralizados
+   ========================================================================== */
+
+/* Contenedor con scroll para listas largas (Búsquedas guardadas, etc.) */
 .csv-scroll-list {
-    max-height: 200px;
+    max-height: 250px;
     overflow-y: auto;
-    border: 1px solid var(--bs-border-color);
+    border: 1px solid var(--bs-border-color); /* Usa las variables nativas de Bootstrap */
+    border-radius: 0.375rem; /* Borde redondeado estándar de Bootstrap */
     padding: 0.5rem;
-    margin-top: 1rem;
-    border-radius: var(--bs-border-radius);
     background-color: var(--bs-tertiary-bg);
 }
 
-.csv-scroll-list a {
-    display: block;
-    margin-bottom: 0.2rem;
-    text-decoration: none;
+/* Personalización de la barra de desplazamiento (Scrollbar) para navegadores Webkit */
+.csv-scroll-list::-webkit-scrollbar {
+    width: 6px;
 }
 
-.csv-scroll-list a:hover {
-    text-decoration: underline;
+.csv-scroll-list::-webkit-scrollbar-track {
+    background: var(--bs-secondary-bg);
+    border-radius: 4px;
 }
 
-.status-badge {
-    min-width: 90px;
+.csv-scroll-list::-webkit-scrollbar-thumb {
+    background: #adb5bd; /* Gris neutro de Bootstrap */
+    border-radius: 4px;
+}
+
+.csv-scroll-list::-webkit-scrollbar-thumb:hover {
+    background: #6c757d;
+}
+
+/* Clases de utilidad para HTMX (Opcional para futura integración de spinners) */
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+}
+
+.htmx-request .htmx-indicator {
+    opacity: 1;
+}
+
+.htmx-request.htmx-indicator {
+    opacity: 1;
 }
