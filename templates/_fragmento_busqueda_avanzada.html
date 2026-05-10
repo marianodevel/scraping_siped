@@ -1,5 +1,5 @@
-<section class="card mb-4 shadow-sm border-success" id="fase_busqueda_avanzada-container">
-    <div class="card-header py-3 bg-success text-white d-flex justify-content-between align-items-center">
+<section class="card mb-4 shadow-sm border-primary" id="fase_busqueda_avanzada-container">
+    <div class="card-header py-3 bg-primary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Búsqueda Avanzada de Expedientes</h5>
     </div>
     
@@ -8,28 +8,9 @@
         
         <form hx-post="{{ url_for('iniciar_busqueda_avanzada') }}" hx-target="#flash-messages" hx-swap="innerHTML" class="mb-0">
             
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label class="form-label fw-bold">Localidad:</label>
-                    <select name="id_localidad" id="localidad_select" class="form-select">
-                        <option value=""></option>
-                        {% for loc_id, loc_name in localidades.items() %}
-                            <option value="{{ loc_id }}" {% if loc_id == "18" %}selected{% endif %}>{{ loc_name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-6 mt-3 mt-md-0">
-                    <label class="form-label fw-bold">Dependencia:</label>
-                    <select name="id_dependencia" id="dependencia_select" class="form-select">
-                        <option value="">Seleccione una dependencia...</option>
-                    </select>
-                </div>
-            </div>
-
             <div class="d-flex align-items-center justify-content-between">
-                <button type="submit" data-fase="fase_busqueda_avanzada" class="btn btn-success"
-                    {% if estados_tareas['fase_busqueda_avanzada'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
-                    Iniciar Búsqueda Avanzada
+                <button type="submit" data-fase="fase_busqueda_avanzada" class="btn btn-primary">
+                    Realizar Búsqueda
                 </button>
                 <div id="estado-resultado-fase_busqueda_avanzada"
                      class="mt-3 mt-md-0"
@@ -59,9 +40,8 @@
                             </select>
                         </div>
                         <div class="col-md-5 mt-3 mt-md-0 d-flex flex-column">
-                            <button type="submit" class="btn btn-primary w-100"
-                                {% if estados_tareas['fase_descarga_publica'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
-                                Descargar Expediente
+                            <button type="submit" class="btn btn-success w-100">
+                                Descargar PDF
                             </button>
                             <div id="estado-resultado-fase_descarga_publica" 
                                  class="mt-2 text-center"
