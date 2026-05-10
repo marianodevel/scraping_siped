@@ -23,13 +23,11 @@
 </div>
 
 <div class="row">
-    <!-- Columna Izquierda: Herramientas de consulta general -->
     <div class="col-xl-6 mb-4">
         <h4 class="mb-3 border-bottom pb-2">Herramientas de Consulta</h4>
         
         {% include '_fragmento_busqueda_avanzada.html' %}
         
-        <!-- Fase Pública -->
         <div class="card mb-4 border-info" id="fase_publica-container">
             <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Búsqueda Masiva Pública</h5>
@@ -56,11 +54,9 @@
         </div>
     </div>
 
-    <!-- Columna Derecha: Flujo de Trabajo (Bandeja Privada) -->
     <div class="col-xl-6 mb-4">
         <h4 class="mb-3 border-bottom pb-2">Flujo de Trabajo (Bandeja Privada)</h4>
 
-        <!-- Fases 1 y 2 (Masivas) -->
         {% set fases = [
             ('fase_1', 'Obtener Lista Maestra (CSV)', 'Descarga la lista completa de expedientes y guarda el archivo maestro <code>expedientes_completos.csv</code>.', 'secondary'),
             ('fase_2', 'Descargar Movimientos (CSVs)', 'Requiere Fase 1. Descarga los movimientos para cada expediente y los guarda en <code>movimientos_expedientes/*.csv</code>.', 'warning')
@@ -123,62 +119,46 @@
         </div>
         {% endfor %}
 
-        <!-- NUEVA FASE 3: Descarga Individual -->
         <div class="card mb-4 border-danger" id="fase_unico-container">
             <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Fase 3: Descarga Individual Completa</h5>
+                <h5 class="mb-0">Fase 3: Descarga de Expediente</h5>
             </div>
             
             <div class="card-body">
-                <p class="card-text text-muted">Actualiza movimientos y compila el PDF consolidado de un expediente seleccionado.</p>
+                <p class="card-text text-muted">Seleccione un expediente para descargar su PDF. Si no está consolidado, el sistema lo procesará automáticamente en segundo plano.</p>
 
                 <form hx-post="{{ url_for('iniciar_descarga_unico') }}" 
                       hx-target="#flash-messages" 
-                      hx-swap="innerHTML">
+                      hx-swap="innerHTML" class="mb-0">
                     
-                    <div class="mb-3">
-                        {% if expedientes_disponibles %}
+                    {% if expedientes_disponibles %}
+                        <div class="input-group mb-3">
                             <select name="expediente_seleccionado" class="form-select border-danger" required>
                                 <option value="" disabled selected>-- Seleccione un Expediente --</option>
                                 {% for exp in expedientes_disponibles %}
                                     <option value="{{ exp.expediente }}">{{ exp.expediente }} - {{ exp.caratula }}</option>
                                 {% endfor %}
                             </select>
-                        {% else %}
-                            <div class="alert alert-warning py-2 mb-0">
-                                <em>No hay lista de expedientes cargada. Ejecute la Fase 1 primero.</em>
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <button type="submit" data-fase="fase_unico" class="btn btn-danger fw-bold"
-                            {% if not expedientes_disponibles or estados_tareas['fase_unico'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
-                            Procesar Expediente
-                        </button>
-                        
-                        <div id="estado-resultado-fase_unico" 
-                             hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_unico') }}" 
-                             hx-trigger="load, every 3s" 
-                             hx-swap="innerHTML">
-                             {% with estado=estados_tareas['fase_unico'] %}
-                                {% include '_fragmento_estado.html' with context %}
-                             {% endwith %}
+                            <button type="submit" data-fase="fase_unico" class="btn btn-danger fw-bold"
+                                {% if estados_tareas['fase_unico'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                                Descargar
+                            </button>
                         </div>
+                    {% else %}
+                        <div class="alert alert-warning py-2 mb-3">
+                            <em>No hay lista de expedientes cargada. Ejecute la Fase 1 primero.</em>
+                        </div>
+                    {% endif %}
+
+                    <div id="estado-resultado-fase_unico"
+                         hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_unico') }}" 
+                         hx-trigger="load, every 3s" 
+                         hx-swap="innerHTML">
+                         {% with estado=estados_tareas['fase_unico'] %}
+                            {% include '_fragmento_estado.html' with context %}
+                         {% endwith %}
                     </div>
                 </form>
-
-                <hr class="my-4">
-                
-                <strong>Documentos Consolidados Disponibles:</strong>
-                <div class="csv-scroll-list mt-2 border-danger" id="pdf-list-container"
-                     hx-get="{{ url_for('fragmento_pdfs') }}"
-                     hx-trigger="load, every 5s, tareaFinalizada from body"
-                     hx-swap="innerHTML">
-                    {% with archivos_pdf=archivos_pdf %}
-                        {% include '_fragmento_pdfs.html' %}
-                    {% endwith %}
-                </div>
             </div>
         </div>
 
