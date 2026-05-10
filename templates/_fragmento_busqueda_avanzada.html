@@ -1,4 +1,3 @@
-<!-- templates/_fragmento_busqueda_avanzada.html -->
 <section class="card mb-4 border-success" id="fase_busqueda_avanzada-container">
     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Búsqueda Avanzada de Expedientes</h5>
@@ -163,6 +162,38 @@
         </form>
 
         <hr class="my-4">
+
+        <div class="card bg-body-secondary border-secondary mb-4">
+            <div class="card-body">
+                <h6 class="card-title fw-bold">Descargar Expediente de Búsqueda Avanzada</h6>
+                <form hx-post="{{ url_for('iniciar_descarga_publico') }}" hx-target="#flash-messages" hx-swap="innerHTML">
+                    <div class="row align-items-end">
+                        <div class="col-md-7">
+                            <select name="link_detalle_seleccionado" class="form-select"
+                                    hx-get="{{ url_for('opciones_busqueda_avanzada') }}"
+                                    hx-trigger="load, every 10s"
+                                    hx-target="this">
+                                <option value="">Cargando expedientes...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5 mt-3 mt-md-0 d-flex flex-column">
+                            <button type="submit" class="btn btn-primary w-100"
+                                {% if estados_tareas['fase_descarga_publica'].estado in ['PENDING', 'STARTED', 'RETRY'] %}disabled{% endif %}>
+                                Descargar Expediente
+                            </button>
+                            <div id="estado-resultado-fase_descarga_publica" class="mt-2 text-center"
+                                 hx-get="{{ url_for('fragmento_estado', nombre_fase='fase_descarga_publica') }}"
+                                 hx-trigger="load, every 3s"
+                                 hx-swap="innerHTML">
+                                 {% with id_fase='fase_descarga_publica', estado=estados_tareas['fase_descarga_publica'] %}
+                                     {% include '_fragmento_estado.html' with context %}
+                                 {% endwith %}
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
         
         <strong>Búsquedas Guardadas:</strong>
         <div class="csv-scroll-list" id="busquedas-list-container"

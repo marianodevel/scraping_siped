@@ -1,0 +1,390 @@
+commit c8f209afddc74c6bb85938ea40ec935b9adff34b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon May 4 20:44:46 2026 -0300
+
+    feat: integrar persistencia SQLite con db_manager y optimizar concurrencia en workers Celery
+
+commit 274c7f197b7e26d402bd70f9d4531e4848c972a7
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sun May 3 19:34:19 2026 -0300
+
+    refactor(frontend): implementa Bootstrap 5, reestructura layout y optimiza flujos
+    
+    - Se implementó un layout base (base.html) utilizando herencia de plantillas Jinja2.
+    - Se integró Bootstrap 5 para el sistema de grillas y diseño responsivo nativo (modo oscuro).
+    - Se extrajeron estilos en línea y scripts globales hacia la nueva carpeta /static.
+    - Se reestructuró index.html eliminando la Fase 3 masiva y renombrando la Descarga Individual a Fase 3.
+    - Se mejoró la presentación de la lista de CSVs en la Fase 2, agrupándola en un desplegable con botón de descarga.
+
+commit 734f7e7bb70b163c4e2def94c404007468e3b94a
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sun May 3 18:21:30 2026 -0300
+
+    refactor(frontend): implementa bootstrap 5 y layout base
+    
+    - Se implementó un layout base (base.html) utilizando herencia de plantillas Jinja2.
+    - Se integró Bootstrap 5 para el sistema de grillas y diseño responsivo nativo (modo oscuro).
+    - Se extrajeron estilos en línea y scripts globales hacia la nueva carpeta /static (style.css, main.js, formularios.js).
+    - Se limpiaron y modularizaron los fragmentos HTMX, eliminando CSS en línea y adoptando clases utilitarias de Bootstrap.
+    - Se mejoró el flujo de datos hacia JS mediante atributos data-*.
+
+commit c5d9d16c1d8a23570c74246b8668eb1b4de9acfa
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sun May 3 14:18:49 2026 -0300
+
+    refactor(frontend): migración a arquitectura base y archivos estáticos
+    
+    - Se implementó un layout base (base.html) utilizando herencia de plantillas Jinja2.
+    - Se extrajeron estilos en línea y scripts globales hacia la nueva carpeta /static (style.css, main.js, formularios.js).
+    - Se limpiaron y modularizaron los fragmentos HTMX, eliminando CSS en línea y adoptando clases utilitarias.
+    - Se mejoró el flujo de datos hacia JS mediante atributos data-*.
+
+commit 02fb20aa7f0f6856381e6b34aa61f1f23c66c285
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sat May 2 09:05:32 2026 -0300
+
+    Refactor: optimización de .gitignore, Docker multi-stage y limpieza de app.py
+
+commit 66abe1ef550e6edf87c7e8e9b372bf949cb260f5
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri May 1 09:56:14 2026 -0300
+
+    refactor: migra app.py y session_manager a logging nativo
+
+commit ab503dc85ddc3c702ef8c3143c23f0f8cb56275f
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri May 1 09:55:15 2026 -0300
+
+    refactor: migra app.py y session_manager a logging nativo
+
+commit 0adfd20e63417e13a240d082cc5add7bd7ec4f23
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri May 1 09:43:50 2026 -0300
+
+    refactor: implementa modulo de logging centralizado
+
+commit 22fbf72128c7456153778d041ea35b6a57de62c5
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri May 1 08:40:38 2026 -0300
+
+    Fix: Corrección de extracción de enlace token de SIPED
+    
+    El menú principal de SIPED (inicio.php) introdujo un nuevo enlace (/sne?token=) que antecedía al de SIPED. La función obtener_enlace_token_siped atrapaba el primer enlace con 'token=' en el HTML, desviando el scraper al módulo incorrecto.
+    
+    Se ajustó la lambda function en BeautifulSoup para requerir la coincidencia de 'token=' y 'siped' en el href.
+
+commit cf1d7000747b860a1ed57e785626bab3591071bc
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Apr 30 13:25:08 2026 -0300
+
+    feat(busqueda): implementar motor de búsqueda avanzada y descargas dinámicas
+    
+    - Backend (Scraper): Se añadió raspar_busqueda_parametrizada para procesar filtros dinámicos.
+    - Celery: Se creó fase_busqueda_avanzada.py y se registró la tarea.
+    - Utils: Se implementó generación de nombres de CSV descriptivos traduciendo IDs desde catálogos.
+    - Frontend: Formulario interactivo con HTMX y panel de historial de búsquedas de actualización asíncrona.
+    - Fixes: Corrección de URLs relativas en PDFs e importaciones globales para los workers.
+
+commit e67bcd8f716e51efa2827cc7241d5d88e1228dd9
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Apr 30 11:13:53 2026 -0300
+
+    bugfix
+
+commit 7cb99f586e7530358a6aee6432080ad6e14dc831
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Apr 30 09:57:23 2026 -0300
+
+    agregados catalogos
+
+commit caadc51d71cdb7bbcb8abdbb87d553504de7ab15
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Apr 27 18:57:01 2026 -0300
+
+    fix(scraping): unificar logica de paginacion de fase publica con fase 1
+
+commit a829a2dadbfde06436d89ee5296bcdc25c89d4ad
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Apr 27 13:09:21 2026 -0300
+
+    feat(scraping): implementar extraccion masiva de expedientes publicos y script CLI de prueba
+
+commit 69914ee284a0871f14312cb6d6264190fa806312
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri Apr 24 22:29:27 2026 -0300
+
+    fix: corrección de puertos, permisos de volumen y robustez del parser
+    
+    - parsers.py: Se implementa regex para la detección de variantes de scripts de descarga de PDF. Se corrige el manejo de excepciones al extraer descripciones de movimientos sin etiqueta <font>.
+    - docker-compose.yml: Se define el nombre del proyecto para evitar contenedores huérfanos. Se actualiza la política de reinicio a  y se elimina el bindeo innecesario del puerto 5000 en el worker.
+    - Dockerfile: Se reemplaza pip por uv para la gestión de dependencias. Se otorgan permisos de escritura sobre los volúmenes montados eliminando la restricción del usuario sin privilegios.
+
+commit 420de6372f1e120a3ccb6dea225a9dee47537535
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Mar 5 19:14:06 2026 -0300
+
+    agregadas rutas dinamicas
+
+commit aaca7b04fbb6efc376bef37f6f118ad21d1d2dfc
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Mar 5 17:24:28 2026 -0300
+
+    arreglado docker-compose
+
+commit 3f3a00fb39a25f74dff70a5e4787527f76e94649
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sat Dec 6 18:11:22 2025 -0300
+
+    agregados links de descarga de las fases
+
+commit dd7661d5b200ddcde17db09c9446c6a8cc5f2946
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri Dec 5 15:46:20 2025 -0300
+
+    corregido typo en requirements-prod.txt
+
+commit c4f94100e385cebd272f0abf1be78a5906176ca2
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Dec 4 21:24:04 2025 -0300
+
+    agregado pypdf
+
+commit 1365eba723e99d357185a207db7b8bca40c72673
+Author: marianodevel <marianodevel@pm.me>
+Date:   Wed Dec 3 18:15:44 2025 -0300
+
+    editado requirements.txt
+
+commit 01af2c49add6a6b16ad63583adfd2a324822d2f7
+Author: marianodevel <marianodevel@pm.me>
+Date:   Wed Dec 3 18:10:26 2025 -0300
+
+    actualizados scripts, tests y README.md
+
+commit 5cd667fa1afbaabecf7c2004eff7b489f2a8d7bc
+Author: marianodevel <marianodevel@pm.me>
+Date:   Wed Dec 3 18:01:22 2025 -0300
+
+    agregados tests
+
+commit 20f456a6e6d600a700d300f028e9d2b255faf916
+Author: marianodevel <marianodevel@pm.me>
+Date:   Wed Dec 3 17:54:21 2025 -0300
+
+    agregado multiusuario
+
+commit 674ee381d77f7dc3934f8aff536ce79b0cbd422b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Dec 2 16:14:11 2025 -0300
+
+    agregados tests
+
+commit 2738c5cd4a4144091ef90db8cb03ccdf5f577b3b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Dec 2 15:57:39 2025 -0300
+
+    agregada fase unico en app.py
+
+commit 1559c6e068459d66b7cd08212bc201785548ade9
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Dec 2 15:16:13 2025 -0300
+
+    agregados tests
+
+commit c60fdeb18ac466c97e69c8534f3eecf83806432a
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Dec 2 12:23:31 2025 -0300
+
+    agregado script de descarga de un solo expediente
+
+commit f4281645a91295bf398ea349c1d41e003558a839
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 25 19:24:13 2025 -0300
+
+    arreglado url en README.md
+
+commit 9b164821b6141c3c99574d620bf35858ccfbfc28
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 25 19:18:58 2025 -0300
+
+    arreglado url en README.md
+
+commit e0611ccabb1d248f5bcdc819207b88320a6140d6
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 25 19:06:59 2025 -0300
+
+    refactorizacion de tests y nombres
+
+commit 25406a3cfbd940cacd5a1600fd113ccabeffcff1
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 25 18:45:08 2025 -0300
+
+    agregados tests web
+
+commit 6b171d4cd7fcd17eb01c88b78e5a0b1a37b4b18b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 25 17:31:17 2025 -0300
+
+    agregados tests
+
+commit 5c2ba45e48863660c4f769d841b8c94d33edcd70
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 24 19:49:11 2025 -0300
+
+    limpiados restos de tests
+
+commit 0228a743e7fbb398b31151d64bd2b5d9dc9fa37b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 24 17:49:14 2025 -0300
+
+    limpiado codigo
+
+commit cba94d6a06f4e8bd715f61008f265fae021cc819
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 24 10:36:37 2025 -0300
+
+    quitados tests y script
+
+commit df4a116487046d4783b3738d88b08c8247bb7e5b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Wed Nov 19 12:49:24 2025 -0300
+
+    modificado README.md
+
+commit ff86327a12f909c6d9f911255d882ceb964c4118
+Author: marianodevel <marianodevel@pm.me>
+Date:   Wed Nov 19 12:29:41 2025 -0300
+
+    movidos scripts a carpeta script
+
+commit 9d2e8c35c4d4b2e5b62145608c42c791ee2f7403
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 18 18:08:14 2025 -0300
+
+    modificada fase3 para descargar pdf
+
+commit 973ce5ccc237ffd08b71ed2e31ad01672820dd29
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 18 11:27:58 2025 -0300
+
+    actualizado README.md
+
+commit c279ff6cd3cd9bba1b9f8ec58fbf439799d836d3
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 18 11:01:44 2025 -0300
+
+    actualizado README.md
+
+commit 78b9d32a31968140fa6fc350317b5b02d8559f65
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sat Nov 15 22:43:04 2025 -0300
+
+    arreglados tests
+
+commit a32e231fa217ecdacd3ae0f8dd3f0aced90f94bf
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sat Nov 15 21:53:01 2025 -0300
+
+    arreglado el bug que impedia lanzar una fase despues de otra
+
+commit 8865b28b267690f5dca8ed5bea8eb95b6b85799d
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sat Nov 15 17:03:37 2025 -0300
+
+    arreglado state reversion
+
+commit 1a20fdabace02023b5233fffff79da5eebac19b4
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sat Nov 15 11:57:59 2025 -0300
+
+    arreglado badges
+
+commit 79a0a716ca023893efba2dbc4bd5efc6602c1b6f
+Author: marianodevel <marianodevel@pm.me>
+Date:   Sat Nov 15 11:34:03 2025 -0300
+
+    añadidos tests
+
+commit e36bca8677939a46055bc18324822ccd72af0674
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri Nov 14 18:26:29 2025 -0300
+
+    Agrega saludo de usuario y botón de logout a index.html
+
+commit ae3fe9c11ac9d9d22299e42a83dad6d1b2f612fc
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri Nov 14 18:02:07 2025 -0300
+
+    agregada autenticacion
+
+commit 9fb78d8cb65e877bc3b5234d63907831603c69cd
+Author: marianodevel <marianodevel@pm.me>
+Date:   Fri Nov 14 15:54:03 2025 -0300
+
+    refactorizado
+
+commit 1d7923c30456ebe0b07ed82a1e2c9010dbfb9fae
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Nov 13 10:10:31 2025 -0300
+
+    agregada reactividad con htmx
+
+commit 4a9c96669a4f8f681b992a634e170c4b476398f0
+Author: marianodevel <marianodevel@pm.me>
+Date:   Thu Nov 13 07:30:12 2025 -0300
+
+    agregado flask
+
+commit 516036e43f45f6a70095129aec9b0b01d3aa0369
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 11 16:51:50 2025 -0300
+
+    agregado script
+
+commit 7323baca74d0995e9cdfeb412b32c5f8a03143b9
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 11 09:44:59 2025 -0300
+
+    agregado script 3
+
+commit 6669ddf7b292741802c4973dfe8c54d6bb026d0b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Tue Nov 11 08:58:11 2025 -0300
+
+    agregado script 3
+
+commit c1d54d11d3b59f2e8f0a682b7ed49cc9c0bba71f
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 10 19:04:41 2025 -0300
+
+    limpiados archivos
+
+commit 9e3e1a0465340081653f88cdc95f3232d8a867c2
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 10 18:46:46 2025 -0300
+
+    arreglada importacion
+
+commit 61da309fa313ef047e01c1736bf1fde9cc5fa887
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 10 18:44:31 2025 -0300
+
+    arreglado importacion
+
+commit 2469f13f8bc567eecc424086776c49f323e3a21b
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 10 11:45:35 2025 -0300
+
+    agregado README.md
+
+commit 8fb0e9fedc5a2d8e20a4086c9446c5e8563eba64
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 10 10:53:30 2025 -0300
+
+    primer commit
+
+commit f1686ed7e05833499dc4e904989bd7b228dec488
+Author: marianodevel <marianodevel@pm.me>
+Date:   Mon Nov 10 10:48:40 2025 -0300
+
+    primer commit

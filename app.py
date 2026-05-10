@@ -1,4 +1,4 @@
-# app.py
+# scraping_siped/app.py
 from flask import (
     Flask,
     render_template,
@@ -20,11 +20,14 @@ from tasks import (
     fase_unico_task,
     fase_publica_task,
     fase_busqueda_avanzada_task,
+    # Se importara en el Paso 3, por ahora se deja el espacio o se comenta si falla
+    # fase_descarga_publica_task, 
 )
 import gestor_tareas
 import gestor_almacenamiento
 import session_manager
 import utils
+import db_manager
 from functools import wraps
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
@@ -36,15 +39,16 @@ from catalogos.dependencias import DEPENDENCIAS_POR_LOCALIDAD
 
 app = Flask(__name__)
 
-# CORRECCIÓN LÍNEA 40: Eliminado el texto de referencia[cite: 1]
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "desarrollo-secreto-cambiar-en-prod-MUY-SECRETO")
 
 class LoginForm(FlaskForm):
+    """Formulario de inicio de sesion para el sistema intranet."""
     username = StringField("Usuario (Intranet)", validators=[DataRequired()])
     password = PasswordField("Contraseña", validators=[DataRequired()])
     submit = SubmitField("Iniciar Sesión")
 
 def login_required(f):
+    """Decorador para proteger rutas que requieren sesion activa."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "siped_cookies" not in session:
@@ -55,6 +59,7 @@ def login_required(f):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    """Ruta de autenticacion del usuario."""
     if "siped_cookies" in session:
         return redirect(url_for("indice"))
              
@@ -81,6 +86,7 @@ def login():
 @app.route("/logout")
 @login_required
 def logout():
+    """Ruta para cerrar sesion."""
     username = session.get('username')
     session.pop("siped_cookies", None)
     session.pop("username", None)
@@ -90,11 +96,13 @@ def logout():
 
 @app.route("/fragmento/mensajes")
 def fragmento_mensajes():
+    """Retorna el fragmento HTML con los mensajes flash actuales."""
     return render_template("_fragmento_mensajes.html")
 
 @app.route("/")
 @login_required
 def indice():
+    """Ruta principal que renderiza el tablero de control."""
     usuario = session.get("username")
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
     existe_maestro = gestor_almacenamiento.verificar_csv_maestro(usuario)
@@ -116,6 +124,7 @@ def indice():
         "fase_unico": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_unico"), "fase_unico"),
         "fase_publica": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_publica"), "fase_publica"),
         "fase_busqueda_avanzada": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_busqueda_avanzada"), "fase_busqueda_avanzada"),
+        "fase_descarga_publica": gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea("fase_descarga_publica"), "fase_descarga_publica"),
     }
          
     return render_template(
@@ -137,6 +146,7 @@ def indice():
 @app.route("/iniciar/<nombre_fase>", methods=["POST"])
 @login_required
 def iniciar_fase(nombre_fase):
+    """Inicia una tarea asincronica para una fase estandar."""
     mapa_tareas = {
         "fase_1": fase_1_lista_task,
         "fase_2": fase_2_movimientos_task,
@@ -171,6 +181,7 @@ def iniciar_fase(nombre_fase):
 @app.route("/iniciar_descarga_unico", methods=["POST"])
 @login_required
 def iniciar_descarga_unico():
+    """Inicia la extraccion asincronica de un expediente unico."""
     nro_expediente = request.form.get("expediente_seleccionado")
     nombre_fase = "fase_unico"
          
@@ -200,6 +211,7 @@ def iniciar_descarga_unico():
 @app.route("/iniciar_busqueda_avanzada", methods=["POST"])
 @login_required
 def iniciar_busqueda_avanzada():
+    """Inicia el proceso asincronico de busqueda avanzada."""
     nombre_fase = "fase_busqueda_avanzada"
     estado_actual = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
@@ -221,9 +233,54 @@ def iniciar_busqueda_avanzada():
     flash(f"Búsqueda Avanzada iniciada con ID: {tarea.id}", "success")
     return render_template("_fragmento_mensajes.html"), 200
 
+@app.route("/fragmento/opciones_busqueda_avanzada")
+@login_required
+def opciones_busqueda_avanzada():
+    """Retorna las opciones HTML correspondientes a los resultados de busqueda avanzada."""
+    usuario = session.get("username")
+    expedientes = db_manager.obtener_expedientes(usuario, origen="BUSQUEDA_AVANZADA")
+    opciones = ['<option value="">Seleccione un expediente...</option>']
+    for exp in expedientes:
+        val = exp.get("link_detalle", "")
+        text = f"{exp.get('expediente', '')} - {exp.get('caratula', '')}"
+        opciones.append(f'<option value="{val}">{text}</option>')
+    return "\n".join(opciones)
+
+@app.route("/iniciar_descarga_publico", methods=["POST"])
+@login_required
+def iniciar_descarga_publico():
+    """Inicia la descarga asincronica de un expediente originado de una busqueda publica."""
+    from tasks import fase_descarga_publica_task
+    link_detalle = request.form.get("link_detalle_seleccionado")
+    nombre_fase = "fase_descarga_publica"
+    
+    if not link_detalle:
+        flash("Debe seleccionar un expediente.", "warning")
+        return render_template("_fragmento_mensajes.html"), 400
+        
+    estado_actual = gestor_tareas.obtener_estado_tarea(
+        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
+    )
+    if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
+        flash("Ya hay una descarga pública en curso.", "warning")
+        return render_template("_fragmento_mensajes.html"), 200
+        
+    cookies_del_usuario = session["siped_cookies"]
+    usuario = session["username"]
+    
+    tarea = fase_descarga_publica_task.delay(
+        cookies=cookies_del_usuario, link_detalle=link_detalle, username=usuario
+    )
+    gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
+    
+    app.logger.info(f"Descarga publica encolada para expediente {link_detalle} (Usuario: {usuario})")
+    flash("Iniciando descarga del expediente público seleccionado...", "success")
+    return render_template("_fragmento_mensajes.html"), 200
+
 @app.route("/resetear_estado/<nombre_fase>")
 @login_required
 def resetear_estado(nombre_fase):
+    """Restablece manualmente el estado de una tarea."""
     gestor_tareas.resetear_id_tarea(nombre_fase)
     app.logger.info(f"Estado de tarea reseteado manualmente: {nombre_fase}")
     flash(f"Estado de {nombre_fase} reseteado manualmente.", "info")
@@ -232,6 +289,7 @@ def resetear_estado(nombre_fase):
 @app.route("/fragmento/estado/<nombre_fase>")
 @login_required
 def fragmento_estado(nombre_fase):
+    """Consulta y retorna el estado actual de una tarea asincronica."""
     estado = gestor_tareas.obtener_estado_tarea(
         gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
     )
@@ -240,6 +298,7 @@ def fragmento_estado(nombre_fase):
 @app.route("/fragmento/pdfs")
 @login_required
 def fragmento_pdfs():
+    """Retorna la lista actualizada de archivos PDF descargados."""
     usuario = session.get("username")
     lista_pdf = gestor_almacenamiento.listar_archivos_pdf(usuario)
     return render_template("_fragmento_pdfs.html", archivos_pdf=lista_pdf)
@@ -247,6 +306,7 @@ def fragmento_pdfs():
 @app.route("/fragmento/busquedas")
 @login_required
 def fragmento_busquedas():
+    """Retorna la lista actualizada de archivos de busqueda generados."""
     usuario = session.get("username")
     lista_busquedas = gestor_almacenamiento.listar_archivos_busqueda(usuario)
     return render_template("_fragmento_busquedas.html", lista_busquedas=lista_busquedas)
@@ -254,6 +314,7 @@ def fragmento_busquedas():
 @app.route("/descargar/<tipo>/<nombre_archivo>")
 @login_required
 def descargar_archivo(tipo, nombre_archivo):
+    """Procesa la descarga directa de un archivo almacenado localmente."""
     usuario = session.get("username")
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
     directorio = None
@@ -274,5 +335,4 @@ def descargar_archivo(tipo, nombre_archivo):
     return send_from_directory(directory=directorio, path=nombre_archivo, as_attachment=True)
 
 if __name__ == "__main__":
-    # CORRECCIÓN LÍNEA 211: Eliminado el texto de referencia[cite: 1]
     app.run(debug=True, host="0.0.0.0", port=5000)
