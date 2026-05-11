@@ -1,4 +1,3 @@
-# app.py
 from flask import (
     Flask,
     render_template,
@@ -36,8 +35,6 @@ from catalogos.localidades import LOCALIDADES
 from catalogos.tipos_juicio import TIPOS_JUICIO
 from catalogos.abogados import ABOGADOS
 from catalogos.dependencias import DEPENDENCIAS_POR_LOCALIDAD
-
-# Importamos SQLAlchemyError para capturar el bloqueo de SQLite
 from sqlalchemy.exc import SQLAlchemyError
 
 app = Flask(__name__)
@@ -116,7 +113,8 @@ def indice():
         )
 
     lista_busquedas = gestor_almacenamiento.listar_archivos_busqueda(usuario)
-    existe_publico = os.path.exists(os.path.join(ruta_usuario, "expedientes_publicos.csv"))
+    ruta_publico_csv = os.path.join(ruta_usuario, "expedientes_publicos.csv")
+    existe_publico_csv = os.path.exists(ruta_publico_csv)
          
     ruta_csv = os.path.join(ruta_usuario, config.LISTA_EXPEDIENTES_CSV)
     expedientes_disponibles = utils.leer_csv_a_diccionario(ruta_csv)
@@ -137,7 +135,7 @@ def indice():
         "index.html",
         archivos_pdf=lista_pdf,
         existe_maestro=existe_maestro,
-        existe_publico=existe_publico,
+        existe_publico_csv=existe_publico_csv,
         lista_busquedas=lista_busquedas,
         lista_movimientos=lista_movimientos,
         estados_tareas=estados_tareas,
@@ -160,13 +158,12 @@ def iniciar_fase(nombre_fase):
     }
          
     if nombre_fase not in mapa_tareas:
-        app.logger.error(f"Intento de iniciar fase desconocida: {nombre_fase}")
-        flash(f"Fase '{nombre_fase}' no reconocida o requiere parámetros.", "error")
+        app.logger.error(f"Fase desconocida: {nombre_fase}")
+        flash(f"Fase '{nombre_fase}' no reconocida.", "error")
         return render_template("_fragmento_mensajes.html"), 400
              
-    estado_actual = gestor_tareas.obtener_estado_tarea(
-        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
-    )
+    estado_actual = gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase)
+    
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
         flash(f"La Fase {nombre_fase} ya está en curso.", "warning")
         return render_template("_fragmento_mensajes.html"), 200
@@ -177,10 +174,8 @@ def iniciar_fase(nombre_fase):
     tarea = mapa_tareas[nombre_fase].delay(cookies=cookies_del_usuario, username=usuario)
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
          
-    app.logger.info(f"Fase {nombre_fase} encolada exitosamente con ID {tarea.id} para usuario {usuario}")
-         
-    etiqueta_fase = nombre_fase.split('_')[1].capitalize() if '_' in nombre_fase else nombre_fase
-    flash(f"Fase {etiqueta_fase} iniciada con ID: {tarea.id}", "success")
+    etiqueta = nombre_fase.split('_')[1].capitalize() if '_' in nombre_fase else nombre_fase
+    flash(f"Proceso {etiqueta} iniciado.", "success")
     return render_template("_fragmento_mensajes.html"), 200
 
 @app.route("/iniciar_descarga_unico", methods=["POST"])
@@ -192,15 +187,32 @@ def iniciar_descarga_unico():
     if not nro_expediente:
         flash("Debe seleccionar un expediente.", "warning")
         return render_template("_fragmento_mensajes.html"), 400
+
+    estado_actual = gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase)
+    if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
+        flash("Actualización en curso. Por favor, aguarde.", "warning")
+        return render_template("_fragmento_mensajes.html"), 200
              
+    usuario = session["username"]
+    cookies_del_usuario = session["siped_cookies"]
+         
+    tarea = fase_unico_task.delay(cookies=cookies_del_usuario, nro_expediente=nro_expediente, username=usuario)
+    gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
+         
+    app.logger.info(f"Actualización forzada encolada para expediente {nro_expediente} (Usuario: {usuario})")
+    flash(f"Actualizando movimientos y consolidando expediente {nro_expediente} en segundo plano...", "success")
+    return render_template("_fragmento_mensajes.html"), 200
+
+@app.route("/descargar_por_expediente/<path:nro_expediente>")
+@login_required
+def descargar_por_expediente(nro_expediente):
     usuario = session["username"]
     ruta_usuario = utils.obtener_ruta_usuario(usuario)
 
     try:
         expedientes = db_manager.obtener_expedientes(usuario, origen="PRIVADO")
         expediente_data = next((e for e in expedientes if e["expediente"] == nro_expediente), None)
-    except SQLAlchemyError as e:
-        app.logger.warning(f"Error accediendo a la BD durante descarga_unico: {e}")
+    except SQLAlchemyError:
         expediente_data = None
 
     if not expediente_data:
@@ -209,76 +221,51 @@ def iniciar_descarga_unico():
         expediente_data = next((e for e in (expedientes_csv or []) if e.get("expediente") == nro_expediente), None)
 
     if not expediente_data:
-        flash("No se encontró información del expediente seleccionado.", "error")
-        return render_template("_fragmento_mensajes.html"), 404
+        app.logger.error(f"No se encontró data para descargar expediente: {nro_expediente}")
+        abort(404)
 
-    caratula = expediente_data.get("caratula", "SIN_CARATULA")
     nro_limpio = utils.limpiar_nombre_archivo(nro_expediente)
-    caratula_limpia = utils.limpiar_nombre_archivo(caratula)
-    nombre_pdf_final = f"{nro_limpio} - {caratula_limpia} (Consolidado).pdf"
+    caratula_limpia = utils.limpiar_nombre_archivo(expediente_data.get("caratula", "SIN_CARATULA"))
+    nombre_pdf = f"{nro_limpio} - {caratula_limpia} (Consolidado).pdf"
     
-    ruta_pdf = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR, nombre_pdf_final)
+    directorio = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
+    ruta_completa = os.path.join(directorio, nombre_pdf)
 
-    if os.path.exists(ruta_pdf):
-        app.logger.info(f"El PDF ya existe. Redirigiendo a descarga directa: {nombre_pdf_final}")
-        url_descarga = url_for('descargar_archivo', tipo='documentos', nombre_archivo=nombre_pdf_final)
-        respuesta = make_response(render_template("_fragmento_mensajes.html"))
-        respuesta.headers["HX-Redirect"] = url_descarga
-        return respuesta
+    if not os.path.exists(ruta_completa):
+        app.logger.error(f"El archivo físico no existe tras la actualización: {ruta_completa}")
+        abort(404)
 
-    estado_actual = gestor_tareas.obtener_estado_tarea(
-        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
-    )
-    if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
-        flash("Ya hay un proceso individual en curso. Por favor, aguarde.", "warning")
-        return render_template("_fragmento_mensajes.html"), 200
-             
-    cookies_del_usuario = session["siped_cookies"]
-         
-    tarea = fase_unico_task.delay(
-        cookies=cookies_del_usuario, nro_expediente=nro_expediente, username=usuario
-    )
-    gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
-         
-    app.logger.info(f"Descarga individual encolada para expediente {nro_expediente} (Usuario: {usuario})")
-    flash(f"El expediente {nro_expediente} no estaba compilado. Generando PDF en segundo plano...", "success")
-    return render_template("_fragmento_mensajes.html"), 200
+    respuesta = send_from_directory(directory=directorio, path=nombre_pdf, as_attachment=True)
+    respuesta.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    respuesta.headers["Pragma"] = "no-cache"
+    respuesta.headers["Expires"] = "0"
+    return respuesta
 
 @app.route("/iniciar_busqueda_avanzada", methods=["POST"])
 @login_required
 def iniciar_busqueda_avanzada():
     nombre_fase = "fase_busqueda_avanzada"
-    estado_actual = gestor_tareas.obtener_estado_tarea(
-        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
-    )
+    estado_actual = gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase)
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
-        flash("La Búsqueda Avanzada ya está en curso.", "warning")
+        flash("Búsqueda Avanzada en curso.", "warning")
         return render_template("_fragmento_mensajes.html"), 200
              
-    cookies_del_usuario = session["siped_cookies"]
-    usuario = session["username"]
-    filtros = request.form.to_dict()
-         
     tarea = fase_busqueda_avanzada_task.delay(
-        cookies=cookies_del_usuario, username=usuario, filtros=filtros
+        cookies=session["siped_cookies"], 
+        username=session["username"], 
+        filtros=request.form.to_dict()
     )
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
-         
-    app.logger.info(f"Búsqueda avanzada encolada para usuario {usuario}")
-    flash(f"Búsqueda Avanzada iniciada con ID: {tarea.id}", "success")
+    flash("Búsqueda iniciada.", "success")
     return render_template("_fragmento_mensajes.html"), 200
 
 @app.route("/fragmento/opciones_busqueda_avanzada")
 @login_required
 def opciones_busqueda_avanzada():
     usuario = session.get("username")
-    
     try:
         expedientes = db_manager.obtener_expedientes(usuario, origen="BUSQUEDA_AVANZADA")
-    except SQLAlchemyError as e:
-        app.logger.warning(f"La base de datos está ocupada (lock) por otra tarea: {e}")
-        # Si la base de datos esta bloqueada, devolvemos un mensaje temporal
-        # HTMX lo mostrara y volvera a intentar en 10 segundos
+    except SQLAlchemyError:
         return '<option value="">Base de datos ocupada. Reintentando...</option>'
 
     opciones = ['<option value="">Seleccione un expediente...</option>']
@@ -298,39 +285,31 @@ def iniciar_descarga_publico():
         flash("Debe seleccionar un expediente.", "warning")
         return render_template("_fragmento_mensajes.html"), 400
         
-    estado_actual = gestor_tareas.obtener_estado_tarea(
-        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
-    )
+    estado_actual = gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase)
     if estado_actual["estado"] in ["PENDING", "STARTED", "RETRY"]:
-        flash("Ya hay una descarga pública en curso.", "warning")
+        flash("Descarga pública en curso.", "warning")
         return render_template("_fragmento_mensajes.html"), 200
         
-    cookies_del_usuario = session["siped_cookies"]
-    usuario = session["username"]
-    
     tarea = fase_descarga_publica_task.delay(
-        cookies=cookies_del_usuario, link_detalle=link_detalle, username=usuario
+        cookies=session["siped_cookies"], 
+        link_detalle=link_detalle, 
+        username=session["username"]
     )
     gestor_tareas.registrar_tarea_iniciada(nombre_fase, tarea)
-    
-    app.logger.info(f"Descarga publica encolada para expediente {link_detalle} (Usuario: {usuario})")
-    flash("Iniciando descarga del expediente público seleccionado...", "success")
+    flash("Iniciando descarga pública...", "success")
     return render_template("_fragmento_mensajes.html"), 200
 
 @app.route("/resetear_estado/<nombre_fase>")
 @login_required
 def resetear_estado(nombre_fase):
     gestor_tareas.resetear_id_tarea(nombre_fase)
-    app.logger.info(f"Estado de tarea reseteado manualmente: {nombre_fase}")
-    flash(f"Estado de {nombre_fase} reseteado manualmente.", "info")
+    flash("Estado reseteado.", "info")
     return render_template("_fragmento_mensajes.html"), 200
 
 @app.route("/fragmento/estado/<nombre_fase>")
 @login_required
 def fragmento_estado(nombre_fase):
-    estado = gestor_tareas.obtener_estado_tarea(
-        gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase
-    )
+    estado = gestor_tareas.obtener_estado_tarea(gestor_tareas.obtener_id_tarea(nombre_fase), nombre_fase)
     return render_template("_fragmento_estado.html", id_fase=nombre_fase, estado=estado)
 
 @app.route("/fragmento/pdfs")
@@ -363,11 +342,44 @@ def descargar_archivo(tipo, nombre_archivo):
         directorio = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
              
     if not directorio or not os.path.exists(os.path.join(directorio, nombre_archivo)):
-        app.logger.warning(f"Intento de descarga fallida. Archivo no encontrado: {nombre_archivo} en tipo {tipo}")
         abort(404)
              
-    app.logger.info(f"Descargando archivo: {nombre_archivo} (Usuario: {usuario})")
-    return send_from_directory(directory=directorio, path=nombre_archivo, as_attachment=True)
+    respuesta = send_from_directory(directory=directorio, path=nombre_archivo, as_attachment=True)
+    respuesta.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    respuesta.headers["Pragma"] = "no-cache"
+    respuesta.headers["Expires"] = "0"
+    return respuesta
+
+@app.route("/debug/<path:nro_expediente>")
+@login_required
+def debug_expediente(nro_expediente):
+    usuario = session.get("username")
+    try:
+        expedientes = db_manager.obtener_expedientes(usuario, origen="PRIVADO")
+        exp = next((e for e in expedientes if e["expediente"] == nro_expediente), None)
+        
+        if not exp:
+            return f"Expediente '{nro_expediente}' no encontrado en la base de datos para el usuario '{usuario}'."
+            
+        movs = db_manager.obtener_movimientos(exp["id"])
+        
+        html = f"<div style='font-family: sans-serif; padding: 20px;'>"
+        html += f"<h2>Diagnóstico de Expediente: {nro_expediente}</h2>"
+        html += f"<p><strong>Total de movimientos registrados en la BD:</strong> {len(movs)}</p>"
+        html += "<h3>Últimos 15 movimientos:</h3>"
+        html += "<table border='1' cellpadding='8' style='border-collapse: collapse; text-align: left;'>"
+        html += "<tr style='background-color: #f2f2f2;'><th>Fecha</th><th>Tiene Link PDF</th><th>Nombre del Escrito</th><th>Estado</th></tr>"
+        
+        for m in movs[-15:]:
+            tiene_link = "SÍ" if m.get("link_escrito") else "NO"
+            color = "green" if tiene_link == "SÍ" else "red"
+            html += f"<tr><td>{m.get('fecha_presentacion', '')}</td><td style='color: {color}; font-weight: bold;'>{tiene_link}</td><td>{m.get('nombre_escrito', '')}</td><td>{m.get('estado', '')}</td></tr>"
+            
+        html += "</table></div>"
+        return html
+        
+    except Exception as e:
+        return f"Error al consultar la base de datos: {str(e)}"
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

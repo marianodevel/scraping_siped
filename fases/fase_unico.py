@@ -13,54 +13,57 @@ logger = get_task_logger(__name__)
 def ejecutar_fase_unico(session, nro_expediente_objetivo, username):
     ruta_usuario = utils.obtener_ruta_usuario(username)
     
-    # Extraer de DB
     expedientes = db_manager.obtener_expedientes(username, origen="PRIVADO")
     expediente_data = next((e for e in expedientes if e["expediente"] == nro_expediente_objetivo), None)
     
     if not expediente_data:
-        return f"Error: El expediente '{nro_expediente_objetivo}' no se encontró en la lista maestra."
+        return f"Error: El expediente '{nro_expediente_objetivo}' no se encontró en la base de datos."
         
     nro = utils.limpiar_nombre_archivo(expediente_data.get("expediente", "SIN_NRO"))
     caratula = utils.limpiar_nombre_archivo(expediente_data.get("caratula", "SIN_CARATULA"))
     nombre_base = f"{nro} - {caratula}"
     
     logger.info(f"Iniciando proceso para: {nombre_base}")
-    logger.info("  > Actualizando movimientos...")
+    logger.info("  > Buscando movimientos nuevos...")
     
-    movimientos = scraper_tasks.raspar_movimientos_de_expediente(
-        session, expediente_data
-    )
+    movimientos_nuevos = scraper_tasks.raspar_movimientos_de_expediente(session, expediente_data)
+    
+    if movimientos_nuevos:
+        logger.info(f"  > Insertando {len(movimientos_nuevos)} movimientos en la base de datos.")
+        db_manager.upsert_movimientos(expediente_data["id"], movimientos_nuevos)
+        
+    movimientos_completos = db_manager.obtener_movimientos(expediente_data["id"])
+    if not movimientos_completos:
+        return f"Finalizado sin datos: No hay movimientos en el historial para {nro_expediente_objetivo}."
+        
+    # El portal judicial entrega los movimientos ordenados del más nuevo al más viejo.
+    # Al invertir la lista, garantizamos el orden cronológico estricto sin necesidad de parsear fechas.
+    movimientos_completos = list(reversed(movimientos_completos))
     
     dir_movimientos = os.path.join(ruta_usuario, config.MOVIMIENTOS_OUTPUT_DIR)
-    dir_docs = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
     nombre_csv = f"{nombre_base}.csv"
-    
-    if movimientos:
-        utils.guardar_a_csv(movimientos, nombre_csv, subdirectory=dir_movimientos)
-        db_manager.upsert_movimientos(expediente_data["id"], movimientos)
-    else:
-        logger.info("  > No se encontraron movimientos nuevos, buscando local/DB...")
-        movimientos = db_manager.obtener_movimientos(expediente_data["id"])
-        
-    if not movimientos:
-        return f"Finalizado sin datos: No hay movimientos para {nro_expediente_objetivo}."
+    utils.guardar_a_csv(movimientos_completos, nombre_csv, subdirectory=dir_movimientos)
         
     logger.info("  > Gestionando descargas de PDF...")
+    dir_docs = os.path.join(ruta_usuario, config.DOCUMENTOS_OUTPUT_DIR)
     ruta_carpeta_expediente = os.path.join(dir_docs, nombre_base)
     os.makedirs(ruta_carpeta_expediente, exist_ok=True)
+    
+    for filename in os.listdir(ruta_carpeta_expediente):
+        if filename.endswith(".pdf") and not filename.startswith("doc_"):
+            os.remove(os.path.join(ruta_carpeta_expediente, filename))
     
     contador_documentos = 0
     total_descargados = 0
     
-    for movimiento in movimientos:
+    for movimiento in movimientos_completos:
         url_doc = movimiento.get("link_escrito")
         if url_doc and url_doc.strip():
             contador_documentos += 1
-            id_correlativo = str(contador_documentos).zfill(2)
+            id_correlativo = f"doc_{str(contador_documentos).zfill(3)}"
+            
             try:
-                datos_documento = scraper_tasks.raspar_contenido_documento(
-                    session, url_doc
-                )
+                datos_documento = scraper_tasks.raspar_contenido_documento(session, url_doc)
                 if datos_documento:
                     pdfs = []
                     if datos_documento.get("url_pdf_principal"):
@@ -93,4 +96,5 @@ def ejecutar_fase_unico(session, nro_expediente_objetivo, username):
         os.remove(ruta_pdf_final)
         
     utils.fusionar_pdfs(ruta_carpeta_expediente, ruta_pdf_final)
-    return f"Proceso completado para {nro_expediente_objetivo}. Descargas nuevas: {total_descargados}. PDF Generado."
+    
+    return f"Proceso completado. Descargas nuevas: {total_descargados}. Total histórico: {len(movimientos_completos)} movimientos."

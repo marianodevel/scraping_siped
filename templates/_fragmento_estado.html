@@ -24,33 +24,28 @@
                     const fase = "{{ id_fase }}";
                     const flagName = 'siped_auto_dl_' + fase;
                     
-                    // Bloqueo de seguridad para evitar que el ciclo de HTMX dispare esto múltiples veces
                     if (!window[flagName]) {
                         window[flagName] = true;
                         
-                        // 1. Accion Principal: Auto-descarga basada en la fase
                         if (fase === "fase_1") {
-                            window.location.href = "{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}";
+                            window.location.href = "{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_completos.csv') }}?v=" + new Date().getTime();
                         } else if (fase === "fase_publica") {
-                            window.location.href = "{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_publicos.csv') }}";
+                            window.location.href = "{{ url_for('descargar_archivo', tipo='maestro', nombre_archivo='expedientes_publicos.csv') }}?v=" + new Date().getTime();
                         } else if (fase === "fase_unico") {
-                            // Para descargas dinamicas, re-enviamos silenciosamente el form. 
-                            // Como el archivo ya existe, app.py respondera inmediatamente con una redireccion (HX-Redirect) al archivo.
-                            let btn = document.querySelector('button[data-fase="' + fase + '"]');
-                            if (btn && btn.closest('form')) htmx.trigger(btn.closest('form'), 'submit');
+                            const select = document.querySelector('select[name="expediente_seleccionado"]');
+                            if (select && select.value) {
+                                window.location.href = "{{ url_for('descargar_por_expediente', nro_expediente='') }}" + encodeURIComponent(select.value) + "?v=" + new Date().getTime();
+                            }
                         }
                         
-                        // 2. Limpieza de UI: Resetear la tarea a IDLE tras 2.5 segundos
                         setTimeout(() => {
                             htmx.ajax('GET', '{{ url_for("resetear_estado", nombre_fase=id_fase) }}', {target: '#flash-messages', swap: 'innerHTML'});
-                            window[flagName] = false; // Liberar flag
+                            window[flagName] = false;
                             
-                            // Si es una fase de múltiples archivos (como los movimientos), recargamos la pagina
-                            // para actualizar el dropdown nativamente.
                             if (fase === "fase_2" || fase === "fase_descarga_publica") {
                                 location.reload();
                             }
-                        }, 2500);
+                        }, 2000);
                     }
                 })();
             </script>
