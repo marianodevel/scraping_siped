@@ -1,22 +1,42 @@
+"""Script de diagnóstico para verificar el estado de expedientes y movimientos en la base de datos."""
+
 import os
 
-# Forzamos la ruta local de la base de datos antes de importar db_manager
 os.environ["SQLALCHEMY_DATABASE_URI"] = "sqlite:///datos_usuarios/siped.db"
 
 import db_manager
 
-usuario = "SU_USUARIO_AQUI"
-nro_expediente = "NRO_DEL_EXPEDIENTE_AQUI"
 
-expedientes = db_manager.obtener_expedientes(usuario, origen="PRIVADO")
-exp = next((e for e in expedientes if e["expediente"] == nro_expediente), None)
+def ejecutar_diagnostico(usuario: str, nro_expediente: str) -> None:
+    """
+    Verifica la integridad de los datos de un expediente en la base local.
 
-if exp:
-    movs = db_manager.obtener_movimientos(exp["id"])
-    print(f"Total movimientos en BD para {nro_expediente}: {len(movs)}")
-    print("--- ÚLTIMOS 5 MOVIMIENTOS ---")
-    for m in movs[-5:]:
-        tiene_link = bool(m.get('link_escrito'))
-        print(f"Fecha: {m['fecha_presentacion']} | Link PDF: {tiene_link} | Archivo: {m['nombre_escrito'][:30]}")
-else:
-    print("Expediente no encontrado en la base de datos.")
+    Args:
+        usuario: Identificador del usuario propietario.
+        nro_expediente: Número de expediente a auditar.
+    """
+    expedientes = db_manager.obtener_expedientes(usuario, origen="PRIVADO")
+    exp = next((e for e in expedientes if e["expediente"] == nro_expediente), None)
+
+    if exp:
+        movs = db_manager.obtener_movimientos(exp["id"])
+        print(f"Total movimientos en BD para {nro_expediente}: {len(movs)}")
+        print("--- ÚLTIMOS 5 MOVIMIENTOS ---")
+
+        for m in movs[-5:]:
+            tiene_link = bool(m.get("link_escrito"))
+            nombre_corto = str(m.get("nombre_escrito", ""))[:30]
+            print(
+                f"Fecha: {m.get('fecha_presentacion')} | Link PDF: {tiene_link} | Archivo: {nombre_corto}"
+            )
+    else:
+        print("Expediente no encontrado en la base de datos.")
+
+
+if __name__ == "__main__":
+    # Variables de prueba configurables localmente
+    USUARIO_PRUEBA = "SU_USUARIO_AQUI"
+    EXPEDIENTE_PRUEBA = "NRO_DEL_EXPEDIENTE_AQUI"
+
+    ejecutar_diagnostico(USUARIO_PRUEBA, EXPEDIENTE_PRUEBA)
+
