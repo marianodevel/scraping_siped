@@ -1,16 +1,19 @@
+"""Script de línea de comandos para la ejecución de la Fase 1: Lista de Expedientes."""
+
 import os
 import sys
 import getpass
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import session_manager
-import scraper_tasks
-import utils
 import config
+import scraper_tasks
+import session_manager
+import utils
 
 
-def main_lista():
+def main_lista() -> None:
+    """Punto de entrada interactivo para la extracción de la lista maestra privada."""
     print("--- CLI FASE 1: OBTENER LISTA DE EXPEDIENTES ---")
 
     usuario = input("Ingrese Usuario (Cuil/DNI): ").strip()
@@ -26,12 +29,9 @@ def main_lista():
     try:
         session = session_manager.crear_sesion_con_cookies(cookies)
         expedientes_list = scraper_tasks.raspar_lista_expedientes(session)
-
-        # Generamos la ruta específica del usuario
         ruta_usuario = utils.obtener_ruta_usuario(usuario)
 
         if expedientes_list:
-            # Guardamos en la subcarpeta del usuario
             utils.guardar_a_csv(
                 expedientes_list,
                 config.LISTA_EXPEDIENTES_CSV,
@@ -44,7 +44,7 @@ def main_lista():
             print("\n⚠️ No se encontraron expedientes.")
 
     except Exception as e:
-        print(f"❌ Error fatal en la Fase 1: {e}")
+        print(f"\n❌ Ocurrió un error inesperado durante la ejecución: {e}")
 
 
 if __name__ == "__main__":
