@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Diagnóstico - {{ nro_expediente }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('indice') }}">Panel Principal</a></li>
+            <li class="breadcrumb-item active">Diagnóstico: {{ nro_expediente }}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h2 class="h5 mb-0">Estado del Expediente: {{ nro_expediente }}</h2>
+        </div>
+        <div class="card-body">
+            <p><strong>Total de movimientos registrados:</strong> {{ movimientos|length }}</p>
+
+            <h3 class="h6 mt-4">Últimos 15 movimientos sincronizados:</h3>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover mt-2">
+                    <thead class="table-secondary">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>PDF</th>
+                            <th>Escrito</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in movimientos[-15:] %}
+                        <tr>
+                            <td>{{ m.fecha_presentacion }}</td>
+                            <td class="text-center">
+                                {% if m.link_escrito %}
+                                <span class="badge bg-success">SÍ</span>
+                                {% else %}
+                                <span class="badge bg-danger">NO</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ m.nombre_escrito }}</td>
+                            <td><small>{{ m.estado }}</small></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">No hay movimientos registrados.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
