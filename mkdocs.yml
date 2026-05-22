@@ -1,0 +1,36 @@
+site_name: Documentación SIPED
+site_description: Sistema Integrado de Extracción y Consolidación de Expedientes Judiciales.
+theme:
+  name: material
+  language: es
+  palette:
+    primary: indigo
+    accent: blue
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            show_root_heading: true
+            show_source: true
+
+nav:
+  - Inicio: index.md
+  - Manual de Usuario:
+    - Flujo de Trabajo Operativo: usuario/flujo.md
+    - Preguntas Frecuentes: usuario/faq.md
+  - Manual de Administrador:
+    - Instalación y Despliegue: admin/despliegue.md
+    - Configuración (Variables): admin/configuracion.md
+  - Guía del Desarrollador:
+    - Arquitectura del Sistema: dev/arquitectura.md
+    - Referencia de la API (Core): dev/api.md
+    - Scripts de Consola (CLI): dev/cli.md
