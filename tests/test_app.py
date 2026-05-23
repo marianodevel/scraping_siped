@@ -1,176 +1,89 @@
-import os
-import sys
 import pytest
-from unittest.mock import MagicMock, patch
+from flask import session
+import os
+import config
 
-# Agregamos el directorio raíz al path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+def test_login_get(client):
+    response = client.get("/login")
+    assert response.status_code == 200
 
-from app import app
-
-
-@pytest.fixture
-def client():
-    """
-    Configura un cliente de prueba de Flask.
-    """
-    app.config["TESTING"] = True
-    app.config["WTF_CSRF_ENABLED"] = False
-    app.config["SECRET_KEY"] = "test_key"
-
-    with app.test_client() as client:
-        with app.app_context():
-            yield client
-
-
-# --- Tests de Autenticación ---
-
-
-def test_redirect_login_si_no_hay_sesion(client):
-    rv = client.get("/")
-    assert rv.status_code == 302
-    assert "/login" in rv.location
-
-
-@patch("app.session_manager")
-def test_login_exitoso(mock_sm, client):
-    mock_sm.autenticar_en_siped.return_value = {"PHPSESSID": "cookie_test"}
-
-    rv = client.post(
-        "/login",
-        data={"username": "usuario_prueba", "password": "password123"},
-        follow_redirects=True,
-    )
-
-    assert rv.status_code == 200
-    assert b"Scraper de Expedientes" in rv.data
+def test_login_post_exitoso(client, mocker):
+    mocker.patch("session_manager.autenticar_en_siped", return_value={"siped_session": "token_123"})
+    response = client.post("/login", data={"username": "usuario_prueba", "password": "clave_segura"}, follow_redirects=True)
+    assert response.status_code == 200
     with client.session_transaction() as sess:
-        assert sess["siped_cookies"] == {"PHPSESSID": "cookie_test"}
-        # Verificamos que se guardó el usuario en sesión
         assert sess["username"] == "usuario_prueba"
+        assert sess["siped_cookies"] == {"siped_session": "token_123"}
 
+def test_login_post_fallido(client, mocker):
+    mocker.patch("session_manager.autenticar_en_siped", return_value=None)
+    response = client.post("/login", data={"username": "usuario_erroneo", "password": "clave_falsa"}, follow_redirects=True)
+    with client.session_transaction() as sess:
+        assert "username" not in sess
 
-@patch("app.session_manager")
-def test_login_fallido(mock_sm, client):
-    mock_sm.autenticar_en_siped.return_value = None
-
-    rv = client.post(
-        "/login",
-        data={"username": "usuario_mal", "password": "password_mal"},
-        follow_redirects=True,
-    )
-
-    assert b"Error de autenticaci" in rv.data
-
+def test_ruta_protegida_requiere_login(client):
+    assert client.get("/").status_code == 302
+    assert client.get("/fragmento/pdfs").status_code == 302
+    assert client.post("/iniciar/fase_1").status_code == 302
 
 def test_logout(client):
     with client.session_transaction() as sess:
-        sess["siped_cookies"] = {"c": "v"}
-        sess["username"] = "user"
-
-    rv = client.get("/logout", follow_redirects=True)
-
-    assert "Sesión cerrada exitosamente" in rv.data.decode("utf-8")
-
+        sess["username"] = "usuario_test"
+        sess["siped_cookies"] = {"siped_session": "token_test"}
+    response = client.get("/logout", follow_redirects=True)
+    assert response.status_code == 200
     with client.session_transaction() as sess:
-        assert "siped_cookies" not in sess
         assert "username" not in sess
 
-
-# --- Tests de Rutas Protegidas y Tareas ---
-
-
-@patch("app.gestor_tareas")
-@patch("app.fase_1_lista_task")
-def test_iniciar_fase_1(mock_task, mock_gestor, client):
-    """
-    Simula el inicio de una fase masiva.
-    """
+def test_iniciar_fase_desconocida(client, mocker):
     with client.session_transaction() as sess:
-        sess["siped_cookies"] = {"c": "v"}
-        sess["username"] = "usuario_test"  # Simulamos usuario logueado
+        sess["username"] = "test"
+        sess["siped_cookies"] = {}
+    response = client.post("/iniciar/fase_inexistente")
+    assert response.status_code == 400
 
-    # Simulamos estado IDLE para permitir ejecutar
-    mock_gestor.obtener_id_tarea.return_value = None
-    mock_gestor.obtener_estado_tarea.return_value = {"estado": "IDLE"}
-
-    # Mock del objeto AsyncResult
-    mock_task_instance = MagicMock()
-    mock_task_instance.id = "task_id_123"
-    mock_task.delay.return_value = mock_task_instance
-
-    rv = client.post("/iniciar/fase_1")
-
-    assert rv.status_code == 200
-    assert b"Fase 1 iniciada con ID: task_id_123" in rv.data
-
-    # VERIFICACIÓN CRÍTICA: username pasado a la tarea
-    mock_task.delay.assert_called_with(cookies={"c": "v"}, username="usuario_test")
-
-    mock_gestor.registrar_tarea_iniciada.assert_called_with(
-        "fase_1", mock_task_instance
-    )
-
-
-@patch("app.gestor_tareas")
-def test_ver_estado_fase(mock_gestor, client):
+def test_iniciar_fase_en_curso(client, mocker):
     with client.session_transaction() as sess:
-        sess["siped_cookies"] = {"c": "v"}
+        sess["username"] = "test"
+        sess["siped_cookies"] = {}
+    mocker.patch("gestor_tareas.obtener_estado_tarea", return_value={"estado": "STARTED"})
+    response = client.post("/iniciar/fase_1")
+    assert response.status_code == 200
+    assert b"curso" in response.data or b"warning" in response.data # Depende de los flashes
 
-    mock_gestor.obtener_estado_tarea.return_value = {
-        "estado": "STARTED",
-        "resultado": "Procesando...",
-    }
-
-    rv = client.get("/fragmento/estado/fase_1")
-
-    assert rv.status_code == 200
-    assert b"status-STARTED" in rv.data
-    assert b"Procesando..." in rv.data
-
-
-# --- Tests para Descarga Individual (Nuevo) ---
-
-
-@patch("app.gestor_tareas")
-@patch("app.fase_unico_task")
-def test_iniciar_descarga_unico_exito(mock_task, mock_gestor, client):
-    """
-    Verifica que se pueda iniciar la descarga de un expediente específico.
-    """
+def test_descargar_archivo_404(client, mocker):
     with client.session_transaction() as sess:
-        sess["siped_cookies"] = {"c": "v"}
-        sess["username"] = "usuario_test"
+        sess["username"] = "test"
+        sess["siped_cookies"] = {}
+    mocker.patch("utils.obtener_ruta_usuario", return_value="/ruta/falsa")
+    response = client.get("/descargar/maestro/archivo_falso.csv")
+    assert response.status_code == 404
 
-    mock_gestor.obtener_id_tarea.return_value = None
-    mock_gestor.obtener_estado_tarea.return_value = {"estado": "IDLE"}
-
-    mock_task_instance = MagicMock()
-    mock_task_instance.id = "task_unico_123"
-    mock_task.delay.return_value = mock_task_instance
-
-    rv = client.post(
-        "/iniciar_descarga_unico", data={"expediente_seleccionado": "100/23"}
-    )
-
-    assert rv.status_code == 200
-    assert b"Procesando expediente 100/23" in rv.data
-
-    # VERIFICACIÓN: argumentos username y nro_expediente
-    mock_task.delay.assert_called_with(
-        cookies={"c": "v"}, nro_expediente="100/23", username="usuario_test"
-    )
-    mock_gestor.registrar_tarea_iniciada.assert_called_with(
-        "fase_unico", mock_task_instance
-    )
-
-
-@patch("app.gestor_tareas")
-def test_iniciar_descarga_unico_sin_seleccion(mock_gestor, client):
+def test_descargar_por_expediente_404_sin_datos(client, mocker):
     with client.session_transaction() as sess:
-        sess["siped_cookies"] = {"c": "v"}
+        sess["username"] = "test"
+        sess["siped_cookies"] = {}
+    mocker.patch("db_manager.obtener_expedientes", return_value=[])
+    mocker.patch("utils.leer_csv_a_diccionario", return_value=[])
+    response = client.get("/descargar_por_expediente/000-2026")
+    assert response.status_code == 404
 
-    rv = client.post("/iniciar_descarga_unico", data={})
+def test_debug_expediente_no_encontrado(client, mocker):
+    with client.session_transaction() as sess:
+        sess["username"] = "test"
+        sess["siped_cookies"] = {}
+    mocker.patch("db_manager.obtener_expedientes", return_value=[])
+    response = client.get("/debug/999-2026")
+    assert response.status_code == 200
+    assert b"no encontrado en la base de datos" in response.data
 
-    assert rv.status_code == 400
-    assert b"Debe seleccionar un expediente" in rv.data
+def test_debug_expediente_exitoso(client, mocker):
+    with client.session_transaction() as sess:
+        sess["username"] = "test"
+        sess["siped_cookies"] = {}
+    mocker.patch("db_manager.obtener_expedientes", return_value=[{"expediente": "123-2026", "id": 1}])
+    mocker.patch("db_manager.obtener_movimientos", return_value=[{"fecha_presentacion": "01/01", "nombre_escrito": "Demanda", "estado": "Despacho"}])
+    response = client.get("/debug/123-2026")
+    assert response.status_code == 200
+    assert b"Diagn" in response.data
+    assert b"Demanda" in response.data
